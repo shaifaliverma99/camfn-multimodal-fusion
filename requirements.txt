@@ -1,6 +1,14 @@
 # Core
-torch>=2.2
-torchvision>=0.17
+# CPU-only wheels: the default PyPI torch/torchvision wheels bundle NVIDIA
+# CUDA libraries (multiple GB) that CPU-only hosts (Streamlit Community
+# Cloud, most free-tier hosts) don't need and often can't even fit within
+# their build size/time limits. This --extra-index-url pulls the small
+# CPU-only build instead; on a machine that *does* have a GPU (like the
+# one these checkpoints were trained on), install torch separately first
+# per https://pytorch.org/get-started/locally/ if you want CUDA.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.4.1
+torchvision==0.19.1
 numpy>=1.26
 scipy>=1.11
 scikit-learn>=1.3
