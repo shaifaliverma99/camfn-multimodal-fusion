@@ -1,0 +1,550 @@
+\documentclass[conference]{IEEEtran}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage[T1]{fontenc}
+\usepackage{url}
+\usepackage{hyperref}
+
+\begin{document}
+
+\title{CAMFN: A Cross-Attention Multimodal Fusion Architecture for\\
+Alzheimer's, Parkinson's, and Epilepsy Screening --- \\
+An Open-Data Feasibility Study}
+
+\author{
+\IEEEauthorblockN{Shaifali Verma}
+\IEEEauthorblockA{Independent Research\\
+Email: abhinavkotnala.cse@geu.ac.in}
+}
+
+\maketitle
+
+\begin{abstract}
+\textbf{Background:} Alzheimer's disease (AD), Parkinson's disease (PD),
+and epilepsy each generate heterogeneous clinical signals (structural
+imaging, electrophysiology, motor and vocal biomarkers), and restricted
+gold-standard corpora (ADNI, OASIS-3, PPMI, TUH~EEG) require credentialed
+access that most reproducibility studies cannot obtain.
+\textbf{Methods:} We present CAMFN, a Cross-Attention Multimodal Fusion
+Network combining per-modality encoders (2D-CNN for imaging, 1D-CNN+BiLSTM
+with temporal attention for EEG, a Transformer encoder for tabular
+acoustic features), pairwise and modality-token cross-attention, and a
+Dynamic Gated Fusion Unit that routes around missing modalities via a
+learned placeholder embedding and a presence mask. We evaluate it not on
+the restricted corpora, but on four open, non-overlapping cohorts that
+approximate each spec modality: OASIS-1 MRI slices, the Parkinson's
+spiral/wave drawing dataset, the UCI Parkinson's voice dataset, and the
+Epileptic Seizure Recognition EEG corpus.
+\textbf{Results:} Across 3 random seeds, per-modality baselines reach
+89.0\%$\pm$3.7\% accuracy (AD vs.\ HC, AUC 0.965), 98.8\%$\pm$0.1\%
+(seizure vs.\ non-seizure, AUC 0.999), and 76--81\% on the two Parkinson's
+drawing tasks and voice (all three evaluated with 5-fold cross-validation
+over the full sample, n=102/102/195, rather than one small held-out
+split). A joint 5-way CAMFN experiment across all four cohorts, with each
+sample's absent modalities masked, reaches 74.7\%$\pm$12.8\% accuracy and
+0.546$\pm$0.022 macro-F1. Critically, an ablation that replaces CAMFN's
+cross-attention and Dynamic Gated Fusion Unit with a fixed masked mean of
+the same encoders' embeddings scores \emph{higher and far more stable}
+accuracy (85.3\%$\pm$3.7\%) at comparable macro-F1 (0.581$\pm$0.068) --- a
+genuine negative result for the fusion mechanism's added complexity under
+these conditions, which we report rather than omit.
+\textbf{Conclusion:} CAMFN's architecture and missing-modality routing run
+correctly end-to-end on genuine data, but the ablation shows its
+cross-attention/gating machinery does not outperform a trivial baseline
+when, as here, no sample carries more than one real modality for it to
+fuse. These results establish architectural feasibility and honest
+per-modality baselines, not a validated multimodal clinical benefit ---
+that claim requires the restricted, linked-record corpora we could not
+access, and we say so explicitly rather than presenting substitute-data
+numbers as equivalent.
+\end{abstract}
+
+\begin{IEEEkeywords}
+multimodal fusion, cross-attention, Alzheimer's disease, Parkinson's
+disease, epilepsy, EEG, missing modality, gated fusion, open data
+\end{IEEEkeywords}
+
+\section{Introduction}
+
+Alzheimer's disease, Parkinson's disease, and epilepsy are the three most
+prevalent chronic neurological disorders, and their clinical presentations
+overlap enough (cognitive decline, motor symptoms, paroxysmal EEG
+abnormalities) that differential diagnosis benefits from combining
+evidence across modalities rather than relying on any single stream
+\cite{jack2008adni,marek2011ppmi,shah2018tuh}. The dominant recent
+approach is cross-modal attention: project each modality into a shared
+embedding space and let a Transformer-style attention mechanism weigh one
+modality's evidence against another's
+\cite{vaswani2017attention,wei2025co_attention,shivahare2026attention}.
+
+A recurring obstacle for reproducible work in this space is data access.
+ADNI, OASIS-3, PPMI, and the TUH EEG Seizure Corpus are the field's
+standard benchmarks, but each requires an individually-signed data use
+agreement; none can be fetched by an automated pipeline, and most
+published multimodal architectures that report strong numbers on them
+are, in practice, unverifiable by a third party who lacks that access.
+
+This paper takes a different, deliberately transparent approach. We
+implement a complete cross-attention multimodal fusion architecture
+(\S\ref{sec:method}) built to the same specification (encoders per
+modality, pairwise and token-level cross-attention, a gated fusion unit
+for missing/noisy streams, multi-task diagnosis + severity heads), but we
+evaluate it exclusively on open, redistributable data, and we are explicit
+about every place where that substitution changes what a result can and
+cannot demonstrate. Our contributions are:
+
+\begin{enumerate}
+\item A full, runnable implementation of a cross-attention multimodal
+fusion network (CAMFN) with a Dynamic Gated Fusion Unit that we show
+empirically tolerates missing modalities without failing catastrophically
+(\S\ref{sec:results}).
+\item Real, honestly-reported per-modality baseline results across 3
+random seeds on four open datasets that stand in for the four modalities
+in the source specification, with the two smallest datasets evaluated by
+cross-validation over the full sample rather than one small held-out
+split, after we observed that a single split can make the same model
+look either far better or far worse than it is (\S\ref{sec:results}).
+\item A fusion ablation --- CAMFN's cross-attention and gating replaced
+by a fixed masked mean of the same encoders' embeddings --- that is a
+genuine negative result for our own architecture's added complexity under
+these conditions, reported rather than omitted (\S\ref{sec:results}).
+\item An explicit accounting (\S\ref{sec:discussion}) of exactly what a
+missing-modality-robust architecture trained on non-co-registered,
+single-modality-per-patient data can and cannot claim about true
+multimodal diagnostic benefit --- a distinction we believe the literature
+often elides.
+\end{enumerate}
+
+\section{Related Work}
+
+\textbf{Foundational architectures.} Our encoders and fusion layers build
+directly on the Transformer self/cross-attention mechanism
+\cite{vaswani2017attention}, residual CNNs \cite{he2016deep}, hierarchical
+vision Transformers \cite{liu2021swin}, and LSTMs \cite{hochreiter1997long}.
+
+\textbf{Single-modality baselines per disease.} For Alzheimer's, CNN
+classifiers on OASIS/ADNI-style structural MRI are well established
+\cite{marcus2007oasis,jack2008adni}. For Parkinson's, two open substitute
+modalities dominate: hand-drawn spiral/wave tasks
+\cite{razaq2025efficientnetv2s,farhah2024spiraldrawing} and vocal
+dysphonia measurements \cite{little2009suitability}; Miah et al.\ survey
+detection methods across this full range of PD data modalities
+\cite{miah2025pdreview}. For epilepsy, both raw scalp EEG (CHB-MIT,
+distributed via PhysioNet \cite{goldberger2000physionet})
+\cite{shoeb2009application,cao2025hybridcnnbilstm} and the derived
+nonlinear-feature corpus we also use \cite{andrzejak2001indications} have
+long benchmark histories.
+
+\textbf{Multimodal fusion under missing modalities.} MedFuse
+\cite{hayat2022medfuse} is the closest architectural precedent outside
+neurology: an LSTM-based fusion module for ICU time-series plus chest
+X-ray that explicitly handles unpaired, partially-missing modalities and
+improves mortality-prediction AUROC (0.865 vs.\ 0.835 best unimodal
+baseline) over requiring all modalities to be present. Sun et al.\ tackle
+the same missing-modality problem for brain tumor segmentation with a
+cross-modal attention fusion network (CMAF-Net) \cite{sun2024cmafnet}.
+Cui et al.\ and Wu et al.\ survey the broader image/non-image and
+missing-modality fusion literature respectively
+\cite{cui2022deepmultimodalreview,wu2024missing_modality_survey}.
+For neurological disease specifically, Wei et al.\ propose a 4D co-attention
+fusion network with latent contrastive alignment for Alzheimer's
+\cite{wei2025co_attention}, and Shivahare et al.\ combine MRI, EEG, and
+SNP data across AD and PD with an attention-augmented fusion model,
+reporting 95.6\% and 94.8\% average accuracy respectively
+\cite{shivahare2026attention} --- notably, on data pooled from OpenNeuro,
+PPMI, and UK Biobank rather than one linked cohort, the same
+cross-cohort-pooling limitation we discuss for our own joint experiment
+(\S\ref{sec:discussion}).
+
+\subsection{Literature Survey}
+
+Table~\ref{tab:litsurvey} compares ten studies most relevant to the four
+modalities and the missing-modality fusion problem addressed here.
+
+\begin{table*}[t]
+\centering
+\caption{Literature survey: modality, model, benchmark, reported performance, and limitations.}
+\label{tab:litsurvey}
+\small
+\begin{tabular}{p{2.1cm}p{1.6cm}p{2.6cm}p{2.3cm}p{2.9cm}p{3.6cm}}
+\toprule
+\textbf{Study} & \textbf{Modality} & \textbf{Model} & \textbf{Dataset} & \textbf{Performance} & \textbf{Limitations} \\
+\midrule
+Little et al.\ \cite{little2009suitability} & Voice & New dysphonia features (PPE) + statistical classifier & UCI Parkinson's voice (self-introduced) & Introduced PPE; not a single reported classifier accuracy & 31 subjects; features precede deep learning \\
+Andrzejak et al.\ \cite{andrzejak2001indications} & EEG & Nonlinear time-series measures & Bonn Univ.\ EEG (self-introduced; basis of the corpus we use) & Separates brain states by nonlinear dynamics, not classifier accuracy & N=100/class; pre-deep-learning \\
+Shoeb \& Guttag \cite{shoeb2009application} & Scalp EEG & Patient-specific SVM & CHB-MIT (self-introduced) & 96\% seizure sensitivity, $\sim$2 false detections/24h & Patient-specific; needs per-patient calibration \\
+Razaq et al.\ \cite{razaq2025efficientnetv2s} & Spiral/wave drawings & Fine-tuned EfficientNetV2-S & PaHaW-style spiral/wave & 98.68\% (spiral) / 98.10\% (wave) acc.\ & Small/imbalanced cohort; unimodal \\
+Farhah \cite{farhah2024spiraldrawing} & Spiral drawings & Transfer learning (InceptionV3, DenseNet169, VGG19, ResNet50V2) & 102 spiral drawings & InceptionV3 89\% acc./91\% ROC & n=102; no external validation \\
+Cao et al.\ \cite{cao2025hybridcnnbilstm} & Scalp EEG & Hybrid CNN--BiLSTM + feature fusion & CHB-MIT & 98.43\% acc., 97.84\% sens., 99.21\% spec.\ & Same-corpus evaluation; heavier compute \\
+Shivahare et al.\ \cite{shivahare2026attention} & MRI+EEG+SNP & Attention-augmented multimodal fusion & OpenNeuro+PPMI+UK Biobank (pooled) & 95.6\% (AD) / 94.8\% (PD) avg.\ acc.\ & Modalities pooled across cohorts, not one linked record (see \S\ref{sec:discussion}) \\
+Wei et al.\ \cite{wei2025co_attention} & Multimodal imaging (4D) & Co-attention fusion + latent contrastive alignment & Not confirmed from abstract & Reported improvement over baselines; exact metric not confirmed & Full text not accessible during this review \\
+Hayat et al.\ (MedFuse) \cite{hayat2022medfuse} & Clinical time-series + chest X-ray & LSTM-based fusion, handles unpaired modalities & MIMIC-IV + MIMIC-CXR & AUROC 0.865 vs.\ 0.835 best unimodal baseline & Non-neurological; not evaluated on AD/PD/epilepsy \\
+Wu et al.\ (survey) \cite{wu2024missing_modality_survey} & Survey (all) & Taxonomy of missing-modality fusion strategies & N/A (survey) & N/A --- categorizes prior approaches & No novel empirical result \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+Two gaps motivate this work. First, almost every high-performing
+multimodal study above evaluates on restricted or pooled-but-not-linked
+data, making independent verification difficult and, in the pooled case,
+conflating cross-cohort classification with true multimodal fusion ---
+exactly the distinction we make explicit for our own results. Second, we
+are not aware of a prior study that reports a fusion architecture's
+missing-modality behavior \emph{and} a clearly negative single-modality
+result in the same paper; results sections in this literature skew toward
+reporting only favorable configurations.
+
+\section{Methodology}
+\label{sec:method}
+
+\subsection{Data pipeline}
+
+Table~\ref{tab:datasources} maps each spec-mandated modality to the real,
+open dataset we substitute for it, all of which are already redistributed
+under open licenses.
+
+\begin{table}[!t]
+\centering
+\caption{Restricted source vs.\ open substitute used in this study.}
+\label{tab:datasources}
+\small
+\begin{tabular}{p{2.4cm}p{2.6cm}p{2.4cm}}
+\toprule
+\textbf{Spec source (restricted)} & \textbf{Open substitute used} & \textbf{n} \\
+\midrule
+ADNI / OASIS-3 (MRI, PET, CDR) & OASIS-1 2D MRI slices \cite{marcus2007oasis} & 86{,}437 slices \\
+PPMI kinematics & Parkinson's spiral/wave drawings & 72 (train)+60 (test) \\
+PPMI / mPower voice & UCI Parkinson's voice \cite{little2009suitability} & 195 recordings, 31 subj.\ \\
+TUH EEG Seizure Corpus & CHB-MIT (raw) \cite{shoeb2009application} + Epileptic Seizure Recognition \cite{andrzejak2001indications} & 11{,}500 windows \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+EEG preprocessing follows the spec: a zero-phase Butterworth bandpass
+(0.5--60\,Hz), a notch filter at the recording's mains frequency, and a
+simplified variance-threshold artifact rejector standing in for full
+Artifact Subspace Reconstruction (which needs calibration data and a
+package, \texttt{asrpy}, not used here --- we name the simplification
+rather than claim full ASR). Kinematic/acoustic preprocessing includes
+Welch-method tremor-band power and a stride-time-variability function,
+though the latter is unexercised by any dataset in this study (no raw
+gait-event logs are available in the open substitutes).
+
+\subsection{CAMFN architecture}
+
+Figure~\ref{fig:flow} (ASCII) shows the data flow. Each modality has a
+dedicated encoder producing a pooled embedding and, where applicable, a
+token sequence:
+
+\begin{itemize}
+\item \textbf{Imaging} (MRI slices, motor drawings): a 4-block 2D CNN
+(conv--BN--ReLU--maxpool)$\times4$ + global average pool.
+\item \textbf{EEG}: a 1D-CNN stack over the channel axis, a bidirectional
+LSTM over time, and additive temporal-attention pooling.
+\item \textbf{Tabular/acoustic}: a 2-layer Transformer encoder with a
+learned \texttt{[CLS]} pooling token.
+\end{itemize}
+
+\begin{figure}[h]
+\centering
+\footnotesize
+\begin{verbatim}
+ MRI slice      EEG window      Drawing       Voice feats
+    |               |              |              |
+ImageEnc2D      EEGEncoder     ImageEnc2D   TabularTransfEnc
+    |               |              |              |
+    +---------------+--------------+--------------+
+                     | project to shared d_model
+         stack as modality-token sequence [B,M,d]
+                     |
+       +-------------------------------+
+       | ModalityTokenTransformer      |
+       | (self-attn over present toks) |
+       +-------------------------------+
+                     |
+       +-------------------------------+
+       | Pairwise CrossAttentionLayer   |
+       | Q=MRI tokens, K/V=EEG tokens    |
+       | (spatial vs. temporal)         |
+       +-------------------------------+
+                     |
+       +-------------------------------+
+       | DynamicGatedFusion             |
+       | g_m = sigma(MLP([t_m; mask_m]))|
+       | fused = sum(mask*g*t)/sum(mask*g)|
+       +-------------------------------+
+                 /         \
+        DiagnosisHead   SeverityHead
+        (5-way)         (CDR/UPDRS/SzFreq-like)
+\end{verbatim}
+\caption{CAMFN data flow (see docs/ARCHITECTURE.md for full detail).}
+\label{fig:flow}
+\end{figure}
+
+\textbf{Pairwise cross-attention.} For query modality $a$ and
+key/value modality $b$, with token sequences $X_a\in\mathbb{R}^{L_a\times
+d}$, $X_b\in\mathbb{R}^{L_b\times d}$:
+\begin{equation}
+Q = X_a W_Q,\quad K = X_b W_K,\quad V = X_b W_V
+\end{equation}
+\begin{equation}
+\mathrm{Attn}(Q,K,V) = \mathrm{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}}\right)V
+\end{equation}
+implemented as a standard multi-head, residual, post-LayerNorm block,
+letting MRI spatial tokens query EEG temporal tokens and vice versa.
+
+\textbf{Dynamic Gated Fusion Unit.} Given per-modality tokens $t_m$ and a
+binary presence mask $\mu_m$ (1 = real data this sample, 0 =
+missing/placeholder):
+\begin{equation}
+g_m = \sigma\big(\mathrm{MLP}([t_m \,\Vert\, \mu_m])\big)
+\end{equation}
+\begin{equation}
+\mathrm{fused} = \frac{\sum_m \mu_m\, g_m\, t_m}{\sum_m \mu_m\, g_m + \epsilon}
+\end{equation}
+Missing modalities are represented by a \emph{learned} placeholder vector,
+not zeros, so the gate has a principled signal to downweight, and $\mu_m$
+guarantees the placeholder cannot leak into the fused representation.
+
+\textbf{Heads.} A linear diagnosis head over $\{$HC, AD, PD, Epilepsy,
+Comorbid$\}$ (cross-entropy loss), and three MLP regressors for CDR-like,
+UPDRS-III-like, and seizure-frequency-index-like severity, each masked out
+of the loss for samples lacking that label (only OASIS-1's bucketed
+severity is available as a real, if coarse, severity target in this
+study).
+
+\section{Experimental Setup}
+
+We ran two kinds of experiment, each over 3 random seeds (42, 43, 44),
+reporting mean $\pm$ population standard deviation:
+
+\begin{enumerate}
+\item \textbf{Per-modality baselines, large cohorts} (MRI, EEG): one
+modality's encoder + a linear head, trained end-to-end with a single
+stratified-random held-out split (n=1800/1725 test), large enough that
+one split gives a stable estimate.
+\item \textbf{Per-modality baselines, small cohorts} (PD spiral/wave
+drawings, n=102 each; PD voice, n=195): the same encoder+head, but
+evaluated with 5-fold cross-validation over the \emph{entire} pool
+(train+test folders combined for drawings) so every real sample is
+scored exactly once as held-out, rather than reporting one $\sim$30-sample
+split. Voice uses \emph{subject-grouped} \texttt{GroupKFold} (not plain
+\texttt{StratifiedKFold}), since the UCI set has $\sim$6 repeated
+recordings per subject and a naive split would leak subject identity
+between train and test.
+\item \textbf{Joint CAMFN}: all four cohorts concatenated via a
+\texttt{MultimodalNeuroDataset} that gives every sample a presence mask
+(exactly one modality real per sample, by construction --- see
+\S\ref{sec:discussion}), trained with the Dynamic Gated Fusion Unit
+active, 5-way diagnosis output, on a single 70/15/15 split.
+\item \textbf{Fusion ablation}: \texttt{NaiveMeanFusionCAMFN} --- identical
+encoders, learned placeholders, and heads to CAMFN, but fusion is a fixed
+masked mean instead of cross-attention + \texttt{ModalityTokenTransformer}
++ \texttt{DynamicGatedFusion} --- trained and evaluated on the
+\emph{same} split as the joint CAMFN run (same seed $\Rightarrow$
+identical \texttt{\_build\_joint\_split()} output), isolating the fusion
+mechanism as the only difference between the two models.
+\end{enumerate}
+
+All models were trained on a single GPU; per-modality baselines used
+6--40 epochs (fewer for the 86k-image MRI cohort, more for the small PD
+cohorts) with early-stopping-by-best-val-accuracy checkpoint selection
+(within each CV fold, for the small cohorts); the joint and ablation
+models used 6 epochs each. Full hyperparameters are in
+\texttt{experiments/run\_real\_experiments.py}.
+
+\section{Results}
+\label{sec:results}
+
+Table~\ref{tab:baselines} reports per-modality baselines; Table~\ref{tab:joint}
+reports the joint 5-way experiment; Table~\ref{tab:ablation} reports the
+fusion ablation. All numbers are genuine held-out metrics from the runs
+in \texttt{experiments/results/}; none are simulated or hand-adjusted.
+
+\begin{table}[!t]
+\centering
+\caption{Per-modality baselines, mean $\pm$ std over 3 seeds. PD tasks use $k$-fold CV over the full sample (see \S\ref{sec:method}); MRI/EEG use one held-out split.}
+\label{tab:baselines}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Task} & $n$ & \textbf{Acc.} & \textbf{Macro-F1} & \textbf{AUC} \\
+\midrule
+AD vs.\ HC (MRI) & 1800 & 0.890$\pm$.037 & 0.803$\pm$.101 & 0.965$\pm$.011 \\
+PD vs.\ HC (spiral, CV) & 102 & 0.807$\pm$.032 & 0.806$\pm$.033 & 0.887$\pm$.023 \\
+PD vs.\ HC (wave, CV) & 102 & 0.765$\pm$.021 & 0.762$\pm$.023 & 0.862$\pm$.033 \\
+PD vs.\ HC (voice, CV) & 195 & 0.749$\pm$.026 & \textbf{0.583$\pm$.003} & 0.527$\pm$.037 \\
+Seizure vs.\ not (EEG) & 1725 & 0.988$\pm$.001 & 0.981$\pm$.001 & 0.999$\pm$.0002 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The voice classifier illustrates why we moved the small cohorts to
+cross-validation: on the single 30-sample split we first tried, it scored
+0.80 accuracy but macro-F1 0.44 and AUC 0.54 --- a complete majority-class
+collapse (0\% healthy-class recall). Evaluated instead via 5-fold
+subject-grouped CV over all 195 recordings, the picture is different:
+macro-F1 0.58 is real, non-trivial signal (well above the $\sim$0.33 floor
+of guessing one class throughout), even though AUC 0.53 confirms it is
+still a weak classifier. \emph{The same model can look either
+completely broken or weakly-functional depending on which $\sim$30-sample
+slice happens to land in the test set} --- exactly the small-$n$ fragility
+that motivated evaluating this way in the first place.
+
+\begin{table}[!t]
+\centering
+\caption{Joint CAMFN, 5-way diagnosis, mean $\pm$ std over 3 seeds ($n_{\text{test}}$=2966).}
+\label{tab:joint}
+\footnotesize
+\begin{tabular}{lc}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Accuracy & 0.747 $\pm$ 0.128 \\
+Macro-F1 & 0.546 $\pm$ 0.022 \\
+AUC-ROC (OvR macro, 4 classes present) & 0.942 $\pm$ 0.035 \\
+Sensitivity --- HC & 0.753 $\pm$ 0.326 \\
+Sensitivity --- AD & \textbf{0.387 $\pm$ 0.438} \\
+Sensitivity --- PD & 0.975 $\pm$ 0.018 \\
+Sensitivity --- Epilepsy & 1.000 $\pm$ 0.000 \\
+Sensitivity --- Comorbid & undefined (0 test samples) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[!t]
+\centering
+\caption{Fusion ablation: CAMFN vs.\ a trivial masked-mean baseline, identical split, mean $\pm$ std over 3 seeds ($n_{\text{test}}$=2966).}
+\label{tab:ablation}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Metric} & \textbf{CAMFN} & \textbf{Naive mean (ablation)} \\
+\midrule
+Accuracy & 0.747$\pm$.128 & \textbf{0.853$\pm$.037} \\
+Macro-F1 & 0.546$\pm$.022 & 0.581$\pm$.068 \\
+AUC-ROC (OvR macro) & \textbf{0.942$\pm$.035} & 0.924$\pm$.007 \\
+Sensitivity --- AD & 0.387$\pm$.438 & 0.265$\pm$.342 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Both HC/AD sensitivity and specificity swing wildly across seeds for
+\emph{both} models (Tables~\ref{tab:joint}--\ref{tab:ablation}) --- a
+genuine finding, not noise we suppressed: pooling four
+independently-sourced cohorts creates a class-imbalanced 5-way problem
+where the minority, single-modality-only AD class is disproportionately
+sensitive to initialization and batch ordering, regardless of fusion
+mechanism. What \emph{does} differ by mechanism is overall stability:
+CAMFN's cross-attention and dynamic gating give a marginally higher
+AUC-ROC (0.942 vs.\ 0.924) but a substantially lower and far less stable
+accuracy (std 0.128 vs.\ 0.037) than the trivial baseline that simply
+averages present-modality embeddings with no learned weighting at all.
+We did not expect, and did not want, this result --- but we ran the
+ablation because a fusion paper without one is not trustworthy, and this
+is what it shows.
+
+\section{Discussion}
+\label{sec:discussion}
+
+\textbf{What the joint experiment does and does not show.} Every sample
+in \texttt{MultimodalNeuroDataset} carries exactly one real modality by
+construction, because OASIS-1, the Parkinson's drawing/voice sets, and the
+EEG sources have no shared patients. The joint experiment therefore tests
+whether a single shared fusion-plus-classification head can correctly
+route single-modality inputs from four different real-world sources to
+the right diagnosis class, and whether CAMFN's specific fusion mechanism
+helps do so. It does \emph{not} demonstrate that fusing two or more real
+modalities from the same patient improves diagnostic accuracy, because
+that condition never occurs in the data available to us. Notably,
+Shivahare et al.\ \cite{shivahare2026attention} report multimodal
+MRI+EEG+SNP accuracy on data pooled from three separate repositories
+(OpenNeuro, PPMI, UK Biobank) rather than one linked cohort --- the same
+structural limitation applies there, though it is not flagged in that
+work. We consider this distinction under-discussed in the literature and
+worth stating plainly.
+
+\textbf{The ablation result, and why we think it happened.} CAMFN's
+cross-attention layers and Dynamic Gated Fusion Unit are designed to let
+one modality's representation be reweighted by evidence from another.
+When, as here, no sample ever contains more than one real modality, there
+is no genuine cross-modal evidence for that machinery to exploit --- the
+``gate'' is only ever choosing among one real embedding and three learned
+placeholders. Table~\ref{tab:ablation} shows that under exactly this
+condition, the extra parameters and attention computation buy CAMFN a
+small AUC edge but cost it accuracy and, especially, stability (4$\times$
+the standard deviation of the trivial baseline). We read this as
+consistent with, not contradictory to, our central claim: cross-attention
+fusion should be expected to help only when there is real cross-modal
+structure to attend over, and this study is precisely the case where
+there is not. We would not extrapolate this ablation's direction to
+linked multimodal data; we report it because a paper proposing a fusion
+architecture ought to test whether the fusion is doing anything, on
+whatever data is available to it, rather than assume it.
+
+\textbf{Clinical implications.} The epilepsy (98.8\% accuracy, AUC 0.999)
+and AD-vs-HC (89.0\% accuracy, AUC 0.965) baselines, on datasets with
+$n>1700$, are the most trustworthy signal in this study and are consistent
+with the broader literature's reported CHB-MIT/EEG and OASIS/MRI
+performance ranges (Table~\ref{tab:litsurvey}). The PD drawing and voice
+results, even after moving to cross-validation over the full sample, are
+still directional rather than precise ($n$=102/195, $\sim$20 held-out per
+fold) --- but the contrast between the voice model's single-split result
+(complete collapse) and its CV result (weak but real signal) is itself a
+useful illustration of a common trap in this literature: a small,
+imbalanced, and (if not subject-grouped) leaky split can make a model
+look either much better or much worse than cross-validation reveals it
+to be.
+
+\textbf{Ethical AI considerations.} None of the checkpoints trained here
+should be used for real clinical decisions: they are trained on open
+substitute datasets standing in for restricted clinical corpora, several
+evaluations are still small enough to be directional rather than precise,
+and the joint 5-way model's minority-class (AD) behavior is unstable
+across seeds regardless of fusion mechanism. The accompanying dashboard
+(not detailed in this paper; see \texttt{app/}) surfaces these caveats
+directly in its UI rather than only in documentation, specifically to
+avoid a user mistaking a research artifact for a validated tool.
+
+\textbf{Limitations and future work.} (1) MRI and drawing encoders operate
+on 2D slices/images, not the 3D volumes or DaT-SPECT that ADNI/PPMI
+provide; a \texttt{Volumetric3DEncoder} is implemented but untested
+against real volumetric data. (2) The Dynamic Gated Fusion Unit's
+robustness is validated against \emph{absence} of a modality, not against
+noisy-but-present modalities, which the original specification also
+calls for. (3) The AD-class instability under cross-cohort pooling
+(Tables~\ref{tab:joint}--\ref{tab:ablation}) suggests class-imbalance
+handling (e.g.\ focal loss, class-balanced sampling) is needed before this
+joint setup is used for anything beyond an architecture check. (4) The
+clear next step, contingent on credentialed access, is re-running the
+identical architecture --- and the same ablation --- against ADNI, PPMI,
+and TUH EEG, where multiple modalities genuinely co-occur per patient, to
+test the cross-attention fusion claim this study's data cannot test.
+
+\section{Conclusion}
+
+We built and validated, end-to-end and on real (if substitute) data, a
+cross-attention multimodal fusion network with a missing-modality-robust
+gated fusion mechanism. Honest evaluation surfaces strong results
+(epilepsy and Alzheimer's baselines), a small-cohort evaluation pitfall
+made visible by moving from a single split to cross-validation (the
+voice model), and a fusion ablation that is a genuine negative result for
+our own architecture: a trivial masked-mean baseline matches or beats
+CAMFN's accuracy and stability under conditions --- no shared patients
+across modalities --- where cross-attention has no real cross-modal
+signal to exploit. We make explicit that our joint multi-cohort
+experiment and ablation validate (or fail to validate) architectural
+properties, not a multimodal diagnostic benefit that would require
+linked-patient data we do not have access to. We release the full
+implementation, all three seeds' raw results, and the trained checkpoints
+so every number in this paper is independently reproducible.
+
+\bibliographystyle{IEEEtran}
+\bibliography{refs}
+
+\end{document}

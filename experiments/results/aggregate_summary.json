@@ -1,0 +1,477 @@
+{
+  "alzheimer_hc_vs_ad": {
+    "modality": "mri",
+    "dataset": "OASIS-1 slices",
+    "note": "",
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "accuracy": {
+      "mean": 0.8898148148148148,
+      "std": 0.036605823069272396,
+      "n_seeds": 3
+    },
+    "auc_roc": {
+      "mean": 0.9648031455401619,
+      "std": 0.010930583006743643,
+      "n_seeds": 3
+    },
+    "best_val_acc": {
+      "mean": 0.888888888888889,
+      "std": 0.036523288697541324,
+      "n_seeds": 3
+    },
+    "macro_f1": {
+      "mean": 0.8032055726689854,
+      "std": 0.10068964371017518,
+      "n_seeds": 3
+    },
+    "n_test": {
+      "mean": 1800.0,
+      "std": 0.0,
+      "n_seeds": 3
+    },
+    "n_train": {
+      "mean": 8400.0,
+      "std": 0.0,
+      "n_seeds": 3
+    },
+    "n_val": {
+      "mean": 1800.0,
+      "std": 0.0,
+      "n_seeds": 3
+    },
+    "sensitivity_per_class_class0": {
+      "mean": 0.9684020374318881,
+      "std": 0.022904842142950663,
+      "n_seeds": 3
+    },
+    "sensitivity_per_class_class1": {
+      "mean": 0.609701900431838,
+      "std": 0.24932527471555305,
+      "n_seeds": 3
+    },
+    "specificity_per_class_class0": {
+      "mean": 0.609701900431838,
+      "std": 0.24932527471555305,
+      "n_seeds": 3
+    },
+    "specificity_per_class_class1": {
+      "mean": 0.9684020374318881,
+      "std": 0.022904842142950663,
+      "n_seeds": 3
+    }
+  },
+  "pd_motor_spiral": {
+    "modality": "motor(drawing)",
+    "dataset": "Parkinson Drawings (spiral)",
+    "note": "5-fold stratified CV over the full train+test pool (n=102); checkpoint is fold-0's model only",
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "accuracy": {
+      "mean": 0.8071895424836601,
+      "std": 0.032351290642521804,
+      "n_seeds": 3
+    },
+    "auc_roc": {
+      "mean": 0.8873510188389081,
+      "std": 0.02276056333133292,
+      "n_seeds": 3
+    },
+    "macro_f1": {
+      "mean": 0.806098762964373,
+      "std": 0.032996932888082205,
+      "n_seeds": 3
+    },
+    "n_folds": {
+      "mean": 5.0,
+      "std": 0.0,
+      "n_seeds": 3
+    },
+    "n_test_total": {
+      "mean": 102.0,
+      "std": 0.0,
+      "n_seeds": 3
+    },
+    "sensitivity_per_class_class0": {
+      "mean": 0.7516339869281046,
+      "std": 0.06470258128504357,
+      "n_seeds": 3
+    },
+    "sensitivity_per_class_class1": {
+      "mean": 0.8627450980392157,
+      "std": 0.04802921064280738,
+      "n_seeds": 3
+    },
+    "specificity_per_class_class0": {
+      "mean": 0.8627450980392157,
+      "std": 0.04802921064280738,
+      "n_seeds": 3
+    },
+    "specificity_per_class_class1": {
+      "mean": 0.7516339869281046,
+      "std": 0.06470258128504357,
+      "n_seeds": 3
+    }
+  },
+  "pd_motor_wave": {
+    "modality": "motor(drawing)",
+    "dataset": "Parkinson Drawings (wave)",
+    "note": "5-fold stratified CV over the full train+test pool (n=102); checkpoint is fold-0's model only",
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "accuracy": {
+      "mean": 0.7647058823529411,
+      "std": 0.02117889117126749,
+      "n_seeds": 3
+    },
+    "auc_roc": {
+      "mean": 0.8621043188517237,
+      "std": 0.032783355394216764,
+      "n_seeds": 3
+    },
+    "macro_f1": {
+      "mean": 0.7618391085097341,
+      "std": 0.022880321868699607,
+      "n_seeds": 3
+    },
+    "n_folds": {
+      "mean": 5.0,
+      "std": 0.0,
+      "n_seeds": 3
+    },
+    "n_test_total": {
+      "mean": 102.0,
+      "std": 0.0,
+      "n_seeds": 3
+    },
+    "sensitivity_per_class_class0": {
+      "mean": 0.8496732026143791,
+      "std": 0.051464103751711156,
+      "n_seeds": 3
+    },
+    "sensitivity_per_class_class1": {
+      "mean": 0.6797385620915033,
+      "std": 0.08058057520220883,
+      "n_seeds": 3
+    },
+    "specificity_per_class_class0": {
+      "mean": 0.6797385620915033,
+      "std": 0.08058057520220883,
+      "n_seeds": 3
+    },
+    "specificity_per_class_class1": {
+      "mean": 0.8496732026143791,
+      "std": 0.051464103751711156,
+      "n_seeds": 3
+    }
+  },
+  "pd_voice": {
+    "modality": "acoustic",
+    "dataset": "UCI Parkinson's voice",
+    "note": "5-fold GroupKFold CV by subject (n=195, ~31 subjects); checkpoint is fold-0's model only",
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "accuracy": {
+      "mean": 0.7487179487179487,
+      "std": 0.026148818018424533,
+      "n_seeds": 3
+    },
+    "auc_roc": {
+      "mean": 0.526691232048375,
+      "std": 0.03704782138563356,
+      "n_seeds": 3
+    },
+    "macro_f1": {
+      "mean": 0.5828268750219969,
+      "std": 0.002991669553637948,
+      "n_seeds": 3
+    },
+    "n_folds": {
+      "mean": 5.0,
+      "std": 0.0,
+      "n_seeds": 3
+    },
+    "n_test_total": {
+      "mean": 195.0,
+      "std": 0.0,
+      "n_seeds": 3
+    },
+    "sensitivity_per_class_class0": {
+      "mean": 0.24305555555555555,
+      "std": 0.04280843057617346,
+      "n_seeds": 3
+    },
+    "sensitivity_per_class_class1": {
+      "mean": 0.9138321995464852,
+      "std": 0.04852819627898571,
+      "n_seeds": 3
+    },
+    "specificity_per_class_class0": {
+      "mean": 0.9138321995464852,
+      "std": 0.04852819627898571,
+      "n_seeds": 3
+    },
+    "specificity_per_class_class1": {
+      "mean": 0.24305555555555555,
+      "std": 0.04280843057617346,
+      "n_seeds": 3
+    }
+  },
+  "epilepsy_seizure_vs_not": {
+    "modality": "eeg",
+    "dataset": "Epileptic Seizure Recognition",
+    "note": "rows are pre-shuffled by the dataset distributor; standard random split matches published practice on this corpus",
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "accuracy": {
+      "mean": 0.9880193236714976,
+      "std": 0.0007230255819852892,
+      "n_seeds": 3
+    },
+    "auc_roc": {
+      "mean": 0.9990814254708394,
+      "std": 0.00020048514254199026,
+      "n_seeds": 3
+    },
+    "best_val_acc": {
+      "mean": 0.991111111111111,
+      "std": 0.0017920035740088503,
+      "n_seeds": 3
+    },
+    "macro_f1": {
+      "mean": 0.9811159960132808,
+      "std": 0.0011293029897812622,
+      "n_seeds": 3
+    },
+    "n_test": {
+      "mean": 1725.0,
+      "std": 0.0,
+      "n_seeds": 3
+    },
+    "n_train": {
+      "mean": 8050.0,
+      "std": 0.0,
+      "n_seeds": 3
+    },
+    "n_val": {
+      "mean": 1725.0,
+      "std": 0.0,
+      "n_seeds": 3
+    },
+    "sensitivity_per_class_class0": {
+      "mean": 0.9954106280193237,
+      "std": 0.0006831949576681754,
+      "n_seeds": 3
+    },
+    "sensitivity_per_class_class1": {
+      "mean": 0.9584541062801932,
+      "std": 0.0013663899153362985,
+      "n_seeds": 3
+    },
+    "specificity_per_class_class0": {
+      "mean": 0.9584541062801932,
+      "std": 0.0013663899153362985,
+      "n_seeds": 3
+    },
+    "specificity_per_class_class1": {
+      "mean": 0.9954106280193237,
+      "std": 0.0006831949576681754,
+      "n_seeds": 3
+    }
+  },
+  "camfn_joint_5way": {
+    "modality": "mri+eeg+motor+acoustic (masked)",
+    "dataset": "combined (4 cohorts)",
+    "note": "5-way diagnosis across combined cohorts; each test sample carries exactly one real modality (others masked absent) -- this validates missing-modality-robust routing through one shared fusion+classification head, not true joint multimodal benefit (no dataset here has >1 modality per patient).",
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "accuracy": {
+      "mean": 0.7472439741422742,
+      "std": 0.1280489619230372,
+      "n_seeds": 3
+    },
+    "auc_roc_ovr_macro": {
+      "mean": 0.9414890537616163,
+      "std": 0.034510279316161706,
+      "n_seeds": 3
+    },
+    "auc_roc_ovr_macro_n_classes_included": {
+      "mean": 4.0,
+      "std": 0.0,
+      "n_seeds": 3
+    },
+    "macro_f1": {
+      "mean": 0.5459203246989783,
+      "std": 0.022303574672481737,
+      "n_seeds": 3
+    },
+    "n_test": {
+      "mean": 2966.0,
+      "std": 0.0,
+      "n_seeds": 3
+    },
+    "n_train": {
+      "mean": 13836.0,
+      "std": 0.0,
+      "n_seeds": 3
+    },
+    "n_val": {
+      "mean": 2965.0,
+      "std": 0.0,
+      "n_seeds": 3
+    },
+    "sensitivity_per_class_class0": {
+      "mean": 0.7527029234960105,
+      "std": 0.32643284367172243,
+      "n_seeds": 3
+    },
+    "sensitivity_per_class_class1": {
+      "mean": 0.38697318007662834,
+      "std": 0.43842535363576685,
+      "n_seeds": 3
+    },
+    "sensitivity_per_class_class2": {
+      "mean": 0.974616858237548,
+      "std": 0.018186626001961213,
+      "n_seeds": 3
+    },
+    "sensitivity_per_class_class3": {
+      "mean": 1.0,
+      "std": 0.0,
+      "n_seeds": 3
+    },
+    "specificity_per_class_class0": {
+      "mean": 0.7464793557242884,
+      "std": 0.1812470984900242,
+      "n_seeds": 3
+    },
+    "specificity_per_class_class1": {
+      "mean": 0.8309362829819104,
+      "std": 0.23857812678430532,
+      "n_seeds": 3
+    },
+    "specificity_per_class_class2": {
+      "mean": 0.9900641607274344,
+      "std": 0.0007064106674235723,
+      "n_seeds": 3
+    },
+    "specificity_per_class_class3": {
+      "mean": 1.0,
+      "std": 0.0,
+      "n_seeds": 3
+    },
+    "specificity_per_class_class4": {
+      "mean": 1.0,
+      "std": 0.0,
+      "n_seeds": 3
+    }
+  },
+  "fusion_ablation_naive_mean": {
+    "modality": "mri+eeg+motor+acoustic (masked)",
+    "dataset": "combined (4 cohorts)",
+    "note": "Ablation baseline: same encoders/placeholders/heads as CAMFN, fusion replaced by a fixed masked mean (no cross-attention, no learned gate). Compare directly against camfn_joint_5way from the same seed.",
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "accuracy": {
+      "mean": 0.8529565777205667,
+      "std": 0.03699699149879827,
+      "n_seeds": 3
+    },
+    "auc_roc_ovr_macro": {
+      "mean": 0.9239408671166247,
+      "std": 0.007244795873372799,
+      "n_seeds": 3
+    },
+    "auc_roc_ovr_macro_n_classes_included": {
+      "mean": 4.0,
+      "std": 0.0,
+      "n_seeds": 3
+    },
+    "macro_f1": {
+      "mean": 0.5812829681766819,
+      "std": 0.06837654443001394,
+      "n_seeds": 3
+    },
+    "n_test": {
+      "mean": 2966.0,
+      "std": 0.0,
+      "n_seeds": 3
+    },
+    "n_train": {
+      "mean": 13836.0,
+      "std": 0.0,
+      "n_seeds": 3
+    },
+    "n_val": {
+      "mean": 2965.0,
+      "std": 0.0,
+      "n_seeds": 3
+    },
+    "sensitivity_per_class_class0": {
+      "mean": 0.9657605816588676,
+      "std": 0.03501627518221805,
+      "n_seeds": 3
+    },
+    "sensitivity_per_class_class1": {
+      "mean": 0.26497351814288933,
+      "std": 0.34149148074712127,
+      "n_seeds": 3
+    },
+    "sensitivity_per_class_class2": {
+      "mean": 0.7967624521072797,
+      "std": 0.03341779276565618,
+      "n_seeds": 3
+    },
+    "sensitivity_per_class_class3": {
+      "mean": 1.0,
+      "std": 0.0,
+      "n_seeds": 3
+    },
+    "specificity_per_class_class0": {
+      "mean": 0.6846063456366108,
+      "std": 0.1441976224014553,
+      "n_seeds": 3
+    },
+    "specificity_per_class_class1": {
+      "mean": 0.9818181818181818,
+      "std": 0.025712973861329008,
+      "n_seeds": 3
+    },
+    "specificity_per_class_class2": {
+      "mean": 0.9942858663689685,
+      "std": 0.000553082552292312,
+      "n_seeds": 3
+    },
+    "specificity_per_class_class3": {
+      "mean": 1.0,
+      "std": 0.0,
+      "n_seeds": 3
+    },
+    "specificity_per_class_class4": {
+      "mean": 1.0,
+      "std": 0.0,
+      "n_seeds": 3
+    }
+  }
+}

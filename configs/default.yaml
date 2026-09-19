@@ -1,0 +1,32 @@
+# Default configuration for CAMFN skeleton runs.
+# Paths are relative to the repo root (/workspace), matching where the
+# datasets actually live (see docs/DATA_SOURCES.md).
+
+seed: 42
+
+data:
+  root: ".."  # /workspace, i.e. one level up from this package
+  alzheimer_dir: "Datasets/Alzheimer/Data"
+  parkinson_drawings_dir: "Datasets/Parkinson"
+  parkinson_voice_file: "Datasets/Parkinson_voice/parkinsons.data"
+  epilepsy_csv: "Datasets/Epilepsy/Epileptic Seizure Recognition.csv"
+  chbmit_dir: "chbmit"
+  image_size: 128
+  eeg_window_seconds: 4
+  eeg_sample_rate: 256
+
+model:
+  d_model: 128
+  n_heads: 4
+  n_fusion_layers: 2
+  dropout: 0.1
+  n_diagnosis_classes: 5   # HC, AD, PD, Epilepsy, Comorbid
+  modalities: ["mri", "eeg", "motor", "acoustic"]
+
+training:
+  batch_size: 8
+  epochs: 1          # skeleton default; raise for a real run
+  lr: 3.0e-4
+  weight_decay: 1.0e-4
+  num_workers: 0
+  device: "cuda"       # falls back to cpu automatically if unavailable
