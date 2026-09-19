@@ -339,6 +339,7 @@ def experiment_pd_voice(log, results: list, save_ckpt: bool = True, save_predict
         model_ctor=lambda: SingleModalityClassifier(TabularTemporalEncoder(in_features=22, d_model=64), d_model=64, n_classes=2),
         epochs=40, batch_size=16, lr=1e-3, n_classes=2, log=log, n_splits=5,
         checkpoint_path=(CKPT_DIR / "pd_voice.pt") if save_ckpt else None,
+        predictions_path=(PRED_DIR / "pd_voice.npz") if save_predictions else None,
     )
     metrics["note"] = "5-fold GroupKFold CV by subject (n=195, ~31 subjects); checkpoint is fold-0's model only"
     log(f"RESULT pd_voice: {metrics}")
