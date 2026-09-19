@@ -64,28 +64,95 @@ def _load_checkpoint(model: nn.Module, name: str) -> tuple[nn.Module, bool]:
 
 
 class ModelRegistry:
-    """Loads every available checkpoint once at import time."""
+    """Loads each checkpoint lazily, on first actual use, rather than all
+    six at once. On memory-constrained hosts (e.g. Streamlit Community
+    Cloud's free tier) this avoids paying for models a given session never
+    touches -- most visitors only exercise one or two tabs.
+    """
 
     def __init__(self):
-        self.mri_model, self.mri_trained = _load_checkpoint(
-            SingleModalityClassifier(ImageEncoder2D(d_model=64), 64, 2), "alzheimer_mri.pt"
-        )
-        self.motor_spiral_model, self.motor_spiral_trained = _load_checkpoint(
-            SingleModalityClassifier(ImageEncoder2D(d_model=64), 64, 2), "pd_motor_spiral.pt"
-        )
-        self.motor_wave_model, self.motor_wave_trained = _load_checkpoint(
-            SingleModalityClassifier(ImageEncoder2D(d_model=64), 64, 2), "pd_motor_wave.pt"
-        )
-        self.voice_model, self.voice_trained = _load_checkpoint(
-            SingleModalityClassifier(TabularTemporalEncoder(in_features=22, d_model=64), 64, 2), "pd_voice.pt"
-        )
-        self.eeg_model, self.eeg_trained = _load_checkpoint(
-            SingleModalityClassifier(EEGEncoder(in_channels=1, d_model=64), 64, 2), "epilepsy_eeg.pt"
-        )
-        self.camfn_model, self.camfn_trained = _load_checkpoint(
-            CAMFN(d_model=64, n_heads=4, n_fusion_layers=2, eeg_in_channels=1, acoustic_in_features=22, n_diagnosis_classes=5),
+        self._cache: dict[str, tuple] = {}
+
+    def _get(self, key: str, model_ctor, checkpoint_name: str) -> tuple:
+        if key not in self._cache:
+            self._cache[key] = _load_checkpoint(model_ctor(), checkpoint_name)
+        return self._cache[key]
+
+    @property
+    def mri_model_pair(self):
+        return self._get("mri", lambda: SingleModalityClassifier(ImageEncoder2D(d_model=64), 64, 2), "alzheimer_mri.pt")
+
+    @property
+    def mri_model(self):
+        return self.mri_model_pair[0]
+
+    @property
+    def mri_trained(self):
+        return self.mri_model_pair[1]
+
+    @property
+    def motor_spiral_model_pair(self):
+        return self._get("motor_spiral", lambda: SingleModalityClassifier(ImageEncoder2D(d_model=64), 64, 2), "pd_motor_spiral.pt")
+
+    @property
+    def motor_spiral_model(self):
+        return self.motor_spiral_model_pair[0]
+
+    @property
+    def motor_spiral_trained(self):
+        return self.motor_spiral_model_pair[1]
+
+    @property
+    def motor_wave_model_pair(self):
+        return self._get("motor_wave", lambda: SingleModalityClassifier(ImageEncoder2D(d_model=64), 64, 2), "pd_motor_wave.pt")
+
+    @property
+    def motor_wave_model(self):
+        return self.motor_wave_model_pair[0]
+
+    @property
+    def motor_wave_trained(self):
+        return self.motor_wave_model_pair[1]
+
+    @property
+    def voice_model_pair(self):
+        return self._get("voice", lambda: SingleModalityClassifier(TabularTemporalEncoder(in_features=22, d_model=64), 64, 2), "pd_voice.pt")
+
+    @property
+    def voice_model(self):
+        return self.voice_model_pair[0]
+
+    @property
+    def voice_trained(self):
+        return self.voice_model_pair[1]
+
+    @property
+    def eeg_model_pair(self):
+        return self._get("eeg", lambda: SingleModalityClassifier(EEGEncoder(in_channels=1, d_model=64), 64, 2), "epilepsy_eeg.pt")
+
+    @property
+    def eeg_model(self):
+        return self.eeg_model_pair[0]
+
+    @property
+    def eeg_trained(self):
+        return self.eeg_model_pair[1]
+
+    @property
+    def camfn_model_pair(self):
+        return self._get(
+            "camfn",
+            lambda: CAMFN(d_model=64, n_heads=4, n_fusion_layers=2, eeg_in_channels=1, acoustic_in_features=22, n_diagnosis_classes=5),
             "camfn_joint.pt",
         )
+
+    @property
+    def camfn_model(self):
+        return self.camfn_model_pair[0]
+
+    @property
+    def camfn_trained(self):
+        return self.camfn_model_pair[1]
 
 
 REGISTRY = ModelRegistry()

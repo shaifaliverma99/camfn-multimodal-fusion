@@ -26,20 +26,27 @@ from app.backend import inference  # noqa: E402
 from app.reports.report_generator import generate_report_pdf  # noqa: E402
 from src.data.acoustic_dataset import FEATURE_COLUMNS  # noqa: E402
 
-try:
-    import mne
+def _try_import_mne():
+    """Deferred import: mne is a heavy dependency, only worth paying for
+    when someone actually uploads an .edf file (most sessions won't)."""
+    try:
+        import mne
 
-    mne.set_log_level("ERROR")
-    _HAS_MNE = True
-except ImportError:
-    _HAS_MNE = False
+        mne.set_log_level("ERROR")
+        return mne
+    except ImportError:
+        return None
 
-try:
-    import nibabel as nib
 
-    _HAS_NIBABEL = True
-except ImportError:
-    _HAS_NIBABEL = False
+def _try_import_nibabel():
+    """Deferred import: same reasoning as mne, for .nii/.nii.gz uploads."""
+    try:
+        import nibabel as nib
+
+        return nib
+    except ImportError:
+        return None
+
 
 st.set_page_config(page_title="CAMFN Multimodal Diagnosis Dashboard", layout="wide")
 
@@ -95,7 +102,8 @@ with tabs[0]:
     upload = st.file_uploader("Upload an MRI slice (.jpg/.png) or a NIfTI volume (.nii/.nii.gz)", type=["jpg", "jpeg", "png", "nii", "gz"], key="mri_upl")
     if upload is not None:
         name = upload.name.lower()
-        if name.endswith((".nii", ".nii.gz")) and _HAS_NIBABEL:
+        nib = _try_import_nibabel() if name.endswith((".nii", ".nii.gz")) else None
+        if nib is not None:
             data = upload.read()
             tmp_path = Path("/tmp") / upload.name
             tmp_path.write_bytes(data)
@@ -183,7 +191,8 @@ with tabs[3]:
                "Recognition corpus. Upload an .edf (first channel, first 178-sample window) or a 178-value CSV row.")
     upload = st.file_uploader("Upload .edf or .csv (single row of EEG samples)", type=["edf", "csv"], key="eeg_upl")
     if upload is not None:
-        if upload.name.lower().endswith(".edf") and _HAS_MNE:
+        mne = _try_import_mne() if upload.name.lower().endswith(".edf") else None
+        if mne is not None:
             tmp_path = Path("/tmp") / upload.name
             tmp_path.write_bytes(upload.read())
             raw = mne.io.read_raw_edf(str(tmp_path), preload=True, verbose="ERROR")
