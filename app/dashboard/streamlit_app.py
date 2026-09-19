@@ -51,12 +51,12 @@ def _try_import_nibabel():
 st.set_page_config(page_title="CAMFN Multimodal Diagnosis Dashboard", layout="wide")
 
 HELD_OUT_ACC = {
-    "mri": 0.890,
-    "motor_spiral": 0.807,   # 5-fold CV, n=102
-    "motor_wave": 0.765,     # 5-fold CV, n=102
-    "voice": 0.749,          # 5-fold subject-grouped CV, n=195 (weak model — see docs/RESULTS.md)
+    "mri": 0.757,            # subject-grouped split, n=1896 (corrected -- see docs/RESULTS.md leakage-fix note)
+    "motor_spiral": 0.690,   # 5-fold subject-grouped CV, n=102 (corrected)
+    "motor_wave": 0.677,     # 5-fold subject-grouped CV, n=102 (corrected)
+    "voice": 0.739,          # 5-fold subject-grouped CV, n=195 (weak model, AUC~0.51 — see docs/RESULTS.md)
     "eeg": 0.988,
-    "joint": 0.747,
+    "joint": 0.659,          # corrected split; ablation beats this on every metric — see docs/RESULTS.md
 }  # mean over 3 seeds, from experiments/results/aggregate_summary.json — update if you re-run experiments
 
 
@@ -97,8 +97,10 @@ tabs = st.tabs(["MRI (Alzheimer)", "Motor (Parkinson's)", "Voice (Parkinson's)",
 # ---------------------------------------------------------------- MRI tab --
 with tabs[0]:
     st.subheader("Structural MRI slice viewer + AD/HC classifier")
-    st.caption("Real checkpoint: experiments/checkpoints/alzheimer_mri.pt — held-out test accuracy 89.0% (n=1800). "
-               "Operates on 2D slices; a .nii/.nii.gz volume will show its middle axial/coronal/sagittal slices.")
+    st.caption("Real checkpoint: experiments/checkpoints/alzheimer_mri.pt — held-out test accuracy 75.7% (n=1896), "
+               "subject-grouped split (an earlier file-level split leaked patients across train/test and reported "
+               "~89%; see docs/RESULTS.md). Operates on 2D slices; a .nii/.nii.gz volume will show its middle "
+               "axial/coronal/sagittal slices.")
     upload = st.file_uploader("Upload an MRI slice (.jpg/.png) or a NIfTI volume (.nii/.nii.gz)", type=["jpg", "jpeg", "png", "nii", "gz"], key="mri_upl")
     if upload is not None:
         name = upload.name.lower()
@@ -139,7 +141,9 @@ with tabs[0]:
 # --------------------------------------------------------------- Motor tab --
 with tabs[1]:
     st.subheader("Spiral/wave drawing viewer + PD motor classifier")
-    st.caption("Real checkpoints: pd_motor_spiral.pt (80.7% acc, 5-fold CV, n=102), pd_motor_wave.pt (76.5% acc, 5-fold CV, n=102) — still small cohorts, treat as directional.")
+    st.caption("Real checkpoints: pd_motor_spiral.pt (69.0% acc, 5-fold subject-grouped CV, n=102), "
+               "pd_motor_wave.pt (67.7% acc, same protocol, n=102) — small cohorts with subject-level grouping "
+               "(the dataset's own train/test split reuses subject IDs on both sides), treat as directional.")
     task = st.radio("Drawing task", ["spiral", "wave"], horizontal=True)
     upload = st.file_uploader("Upload a spiral/wave drawing image", type=["jpg", "jpeg", "png"], key="motor_upl")
     if upload is not None:
@@ -159,8 +163,9 @@ with tabs[1]:
 with tabs[2]:
     st.subheader("Vocal acoustic biomarkers + PD voice classifier")
     st.caption("Real checkpoint: pd_voice.pt. **Weak model**: 5-fold subject-grouped CV over all 195 recordings "
-               "gives macro-F1 ~0.58, AUC ~0.53 (barely above chance) — shown anyway per the 'no fabrication' "
-               "policy, not hidden. The single checkpoint deployed here is one CV fold's model. See docs/RESULTS.md.")
+               "gives 73.9% accuracy but macro-F1 0.58 and AUC 0.51 (indistinguishable from chance) — shown anyway "
+               "per the 'no fabrication' policy, not hidden. The single checkpoint deployed here is one CV fold's "
+               "model. See docs/RESULTS.md.")
     st.markdown("Enter the 22 UCI dysphonia measurements (or upload a one-row CSV with these column names):")
     csv_upload = st.file_uploader("Upload one-row CSV with the 22 feature columns", type=["csv"], key="voice_csv")
     values = {}
@@ -187,8 +192,9 @@ with tabs[2]:
 # ----------------------------------------------------------------- EEG tab --
 with tabs[3]:
     st.subheader("EEG trace viewer + seizure classifier")
-    st.caption("Real checkpoint: epilepsy_eeg.pt — held-out test accuracy 98.9% (n=1725) on the Epileptic Seizure "
-               "Recognition corpus. Upload an .edf (first channel, first 178-sample window) or a 178-value CSV row.")
+    st.caption("Real checkpoint: epilepsy_eeg.pt — held-out test accuracy 98.8% (n=1725) on the Epileptic Seizure "
+               "Recognition corpus, unaffected by the subject-leakage fix (no recoverable subject ID in this "
+               "corpus). Upload an .edf (first channel, first 178-sample window) or a 178-value CSV row.")
     upload = st.file_uploader("Upload .edf or .csv (single row of EEG samples)", type=["edf", "csv"], key="eeg_upl")
     if upload is not None:
         mne = _try_import_mne() if upload.name.lower().endswith(".edf") else None
@@ -227,10 +233,11 @@ with tabs[3]:
 with tabs[4]:
     st.subheader("Joint CAMFN fusion (dynamic gated fusion across whichever modalities you provide)")
     st.caption(
-        "Real checkpoint: camfn_joint.pt — 5-way HC/AD/PD/Epilepsy/Comorbid, held-out test accuracy 74.7%±12.8% "
-        "over 3 seeds (n=2966), macro-F1 0.55 (AD recall is unstable across seeds — combined-cohort class "
-        "imbalance, see docs/RESULTS.md). **A fusion ablation shows a trivial masked-mean baseline beats this "
-        "model on accuracy and stability** (see paper §Results) — CAMFN's cross-attention/gating has no real "
+        "Real checkpoint: camfn_joint.pt — 5-way HC/AD/PD/Epilepsy/Comorbid, held-out test accuracy 65.9%±19.1% "
+        "over 3 seeds (n≈3021, subject-grouped-per-cohort split), macro-F1 0.50 (AD recall is very unstable "
+        "across seeds — combined-cohort class imbalance, see docs/RESULTS.md). **A fusion ablation shows a "
+        "trivial masked-mean baseline beats this model on every metric we measure** (accuracy, macro-F1, AUC, "
+        "and stability — see paper §VI) — CAMFN's cross-attention/gating has no real "
         "cross-modal signal to exploit here, since **no sample used here ever has more than one real "
         "modality** (see docs/DATA_SOURCES.md). This tab demonstrates the missing-modality-robust routing "
         "mechanism, not a validated multi-modal diagnostic benefit."
