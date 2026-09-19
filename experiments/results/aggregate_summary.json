@@ -2,90 +2,90 @@
   "alzheimer_hc_vs_ad": {
     "modality": "mri",
     "dataset": "OASIS-1 slices",
-    "note": "",
+    "note": "subject-grouped split (GroupShuffleSplit) over 347 unique OASIS-1 subjects -- a prior version of this experiment split individual slices without subject grouping, which leaks the same patient's scans across train/test and inflates accuracy; see docs/RESULTS.md.",
     "seeds": [
       42,
       43,
       44
     ],
     "accuracy": {
-      "mean": 0.8898148148148148,
-      "std": 0.036605823069272396,
+      "mean": 0.7571854493334617,
+      "std": 0.057541497889817786,
       "n_seeds": 3
     },
     "auc_roc": {
-      "mean": 0.9648031455401619,
-      "std": 0.010930583006743643,
+      "mean": 0.8402852054937912,
+      "std": 0.010270433536749916,
       "n_seeds": 3
     },
     "best_val_acc": {
-      "mean": 0.888888888888889,
-      "std": 0.036523288697541324,
+      "mean": 0.8451607165181233,
+      "std": 0.020550846749608682,
       "n_seeds": 3
     },
     "macro_f1": {
-      "mean": 0.8032055726689854,
-      "std": 0.10068964371017518,
+      "mean": 0.5486813994709238,
+      "std": 0.0880166320894594,
       "n_seeds": 3
     },
     "n_test": {
-      "mean": 1800.0,
-      "std": 0.0,
+      "mean": 1896.3333333333333,
+      "std": 43.05293898859352,
       "n_seeds": 3
     },
     "n_train": {
-      "mean": 8400.0,
-      "std": 0.0,
+      "mean": 8247.333333333334,
+      "std": 97.46566346952939,
       "n_seeds": 3
     },
     "n_val": {
-      "mean": 1800.0,
-      "std": 0.0,
+      "mean": 1856.3333333333333,
+      "std": 54.847262668452494,
       "n_seeds": 3
     },
     "sensitivity_per_class_class0": {
-      "mean": 0.9684020374318881,
-      "std": 0.022904842142950663,
+      "mean": 0.9652629101231309,
+      "std": 0.03259308390440342,
       "n_seeds": 3
     },
     "sensitivity_per_class_class1": {
-      "mean": 0.609701900431838,
-      "std": 0.24932527471555305,
+      "mean": 0.1828635953026197,
+      "std": 0.15051098909647861,
       "n_seeds": 3
     },
     "specificity_per_class_class0": {
-      "mean": 0.609701900431838,
-      "std": 0.24932527471555305,
+      "mean": 0.1828635953026197,
+      "std": 0.15051098909647861,
       "n_seeds": 3
     },
     "specificity_per_class_class1": {
-      "mean": 0.9684020374318881,
-      "std": 0.022904842142950663,
+      "mean": 0.9652629101231309,
+      "std": 0.03259308390440342,
       "n_seeds": 3
     }
   },
   "pd_motor_spiral": {
     "modality": "motor(drawing)",
     "dataset": "Parkinson Drawings (spiral)",
-    "note": "5-fold stratified CV over the full train+test pool (n=102); checkpoint is fold-0's model only",
+    "note": "5-fold GroupKFold CV by subject over the full train+test pool (28 groups, n=102); the dataset's own train/test split is not subject-disjoint (same IDs on both sides), which a prior version of this experiment did not correct for; checkpoint is fold-0's model only.",
     "seeds": [
       42,
       43,
       44
     ],
     "accuracy": {
-      "mean": 0.8071895424836601,
-      "std": 0.032351290642521804,
+      "mean": 0.6895424836601307,
+      "std": 0.04690424867453372,
       "n_seeds": 3
     },
     "auc_roc": {
-      "mean": 0.8873510188389081,
-      "std": 0.02276056333133292,
+      "mean": 0.75919518134051,
+      "std": 0.06338650426996022,
       "n_seeds": 3
     },
     "macro_f1": {
-      "mean": 0.806098762964373,
-      "std": 0.032996932888082205,
+      "mean": 0.6797180899908047,
+      "std": 0.05393162197259507,
       "n_seeds": 3
     },
     "n_folds": {
@@ -99,48 +99,48 @@
       "n_seeds": 3
     },
     "sensitivity_per_class_class0": {
-      "mean": 0.7516339869281046,
-      "std": 0.06470258128504357,
+      "mean": 0.8366013071895425,
+      "std": 0.06665384985088608,
       "n_seeds": 3
     },
     "sensitivity_per_class_class1": {
-      "mean": 0.8627450980392157,
-      "std": 0.04802921064280738,
+      "mean": 0.542483660130719,
+      "std": 0.10897602614727496,
       "n_seeds": 3
     },
     "specificity_per_class_class0": {
-      "mean": 0.8627450980392157,
-      "std": 0.04802921064280738,
+      "mean": 0.542483660130719,
+      "std": 0.10897602614727496,
       "n_seeds": 3
     },
     "specificity_per_class_class1": {
-      "mean": 0.7516339869281046,
-      "std": 0.06470258128504357,
+      "mean": 0.8366013071895425,
+      "std": 0.06665384985088608,
       "n_seeds": 3
     }
   },
   "pd_motor_wave": {
     "modality": "motor(drawing)",
     "dataset": "Parkinson Drawings (wave)",
-    "note": "5-fold stratified CV over the full train+test pool (n=102); checkpoint is fold-0's model only",
+    "note": "5-fold GroupKFold CV by subject over the full train+test pool (28 groups, n=102); the dataset's own train/test split is not subject-disjoint (same IDs on both sides), which a prior version of this experiment did not correct for; checkpoint is fold-0's model only.",
     "seeds": [
       42,
       43,
       44
     ],
     "accuracy": {
-      "mean": 0.7647058823529411,
-      "std": 0.02117889117126749,
+      "mean": 0.676470588235294,
+      "std": 0.08357328008198968,
       "n_seeds": 3
     },
     "auc_roc": {
-      "mean": 0.8621043188517237,
-      "std": 0.032783355394216764,
+      "mean": 0.6912725874663591,
+      "std": 0.07049992283872787,
       "n_seeds": 3
     },
     "macro_f1": {
-      "mean": 0.7618391085097341,
-      "std": 0.022880321868699607,
+      "mean": 0.6614812529433757,
+      "std": 0.09146479710235601,
       "n_seeds": 3
     },
     "n_folds": {
@@ -154,23 +154,23 @@
       "n_seeds": 3
     },
     "sensitivity_per_class_class0": {
-      "mean": 0.8496732026143791,
-      "std": 0.051464103751711156,
+      "mean": 0.869281045751634,
+      "std": 0.04891055407547632,
       "n_seeds": 3
     },
     "sensitivity_per_class_class1": {
-      "mean": 0.6797385620915033,
-      "std": 0.08058057520220883,
+      "mean": 0.48366013071895425,
+      "std": 0.13039174734156864,
       "n_seeds": 3
     },
     "specificity_per_class_class0": {
-      "mean": 0.6797385620915033,
-      "std": 0.08058057520220883,
+      "mean": 0.48366013071895425,
+      "std": 0.13039174734156864,
       "n_seeds": 3
     },
     "specificity_per_class_class1": {
-      "mean": 0.8496732026143791,
-      "std": 0.051464103751711156,
+      "mean": 0.869281045751634,
+      "std": 0.04891055407547632,
       "n_seeds": 3
     }
   },
@@ -184,18 +184,18 @@
       44
     ],
     "accuracy": {
-      "mean": 0.7487179487179487,
-      "std": 0.026148818018424533,
+      "mean": 0.7384615384615385,
+      "std": 0.023313131105958743,
       "n_seeds": 3
     },
     "auc_roc": {
-      "mean": 0.526691232048375,
-      "std": 0.03704782138563356,
+      "mean": 0.5081254724111867,
+      "std": 0.02869780339996501,
       "n_seeds": 3
     },
     "macro_f1": {
-      "mean": 0.5828268750219969,
-      "std": 0.002991669553637948,
+      "mean": 0.5760185556191154,
+      "std": 0.023807253299114234,
       "n_seeds": 3
     },
     "n_folds": {
@@ -210,22 +210,22 @@
     },
     "sensitivity_per_class_class0": {
       "mean": 0.24305555555555555,
-      "std": 0.04280843057617346,
+      "std": 0.035409857733283236,
       "n_seeds": 3
     },
     "sensitivity_per_class_class1": {
-      "mean": 0.9138321995464852,
-      "std": 0.04852819627898571,
+      "mean": 0.9002267573696145,
+      "std": 0.03206833474768927,
       "n_seeds": 3
     },
     "specificity_per_class_class0": {
-      "mean": 0.9138321995464852,
-      "std": 0.04852819627898571,
+      "mean": 0.9002267573696145,
+      "std": 0.03206833474768927,
       "n_seeds": 3
     },
     "specificity_per_class_class1": {
       "mean": 0.24305555555555555,
-      "std": 0.04280843057617346,
+      "std": 0.035409857733283236,
       "n_seeds": 3
     }
   },
@@ -239,23 +239,23 @@
       44
     ],
     "accuracy": {
-      "mean": 0.9880193236714976,
-      "std": 0.0007230255819852892,
+      "mean": 0.9882125603864734,
+      "std": 0.0019706355608087693,
       "n_seeds": 3
     },
     "auc_roc": {
-      "mean": 0.9990814254708394,
-      "std": 0.00020048514254199026,
+      "mean": 0.9989666036546945,
+      "std": 0.00032459151693256646,
       "n_seeds": 3
     },
     "best_val_acc": {
-      "mean": 0.991111111111111,
-      "std": 0.0017920035740088503,
+      "mean": 0.9901449275362318,
+      "std": 0.0023666567563122506,
       "n_seeds": 3
     },
     "macro_f1": {
-      "mean": 0.9811159960132808,
-      "std": 0.0011293029897812622,
+      "mean": 0.981619325615621,
+      "std": 0.002955484435269087,
       "n_seeds": 3
     },
     "n_test": {
@@ -274,23 +274,23 @@
       "n_seeds": 3
     },
     "sensitivity_per_class_class0": {
-      "mean": 0.9954106280193237,
-      "std": 0.0006831949576681754,
+      "mean": 0.9922705314009662,
+      "std": 0.0032586322616502228,
       "n_seeds": 3
     },
     "sensitivity_per_class_class1": {
-      "mean": 0.9584541062801932,
-      "std": 0.0013663899153362985,
+      "mean": 0.9719806763285024,
+      "std": 0.003615127909926496,
       "n_seeds": 3
     },
     "specificity_per_class_class0": {
-      "mean": 0.9584541062801932,
-      "std": 0.0013663899153362985,
+      "mean": 0.9719806763285024,
+      "std": 0.003615127909926496,
       "n_seeds": 3
     },
     "specificity_per_class_class1": {
-      "mean": 0.9954106280193237,
-      "std": 0.0006831949576681754,
+      "mean": 0.9922705314009662,
+      "std": 0.0032586322616502228,
       "n_seeds": 3
     }
   },
@@ -304,13 +304,13 @@
       44
     ],
     "accuracy": {
-      "mean": 0.7472439741422742,
-      "std": 0.1280489619230372,
+      "mean": 0.6587247215108313,
+      "std": 0.1906993991242049,
       "n_seeds": 3
     },
     "auc_roc_ovr_macro": {
-      "mean": 0.9414890537616163,
-      "std": 0.034510279316161706,
+      "mean": 0.8862586026486382,
+      "std": 0.028635593971568864,
       "n_seeds": 3
     },
     "auc_roc_ovr_macro_n_classes_included": {
@@ -319,38 +319,38 @@
       "n_seeds": 3
     },
     "macro_f1": {
-      "mean": 0.5459203246989783,
-      "std": 0.022303574672481737,
+      "mean": 0.5044194167978301,
+      "std": 0.05504162260369577,
       "n_seeds": 3
     },
     "n_test": {
-      "mean": 2966.0,
-      "std": 0.0,
+      "mean": 3021.3333333333335,
+      "std": 36.97146046464609,
       "n_seeds": 3
     },
     "n_train": {
-      "mean": 13836.0,
-      "std": 0.0,
+      "mean": 13744.0,
+      "std": 65.91408549518583,
       "n_seeds": 3
     },
     "n_val": {
-      "mean": 2965.0,
-      "std": 0.0,
+      "mean": 3001.6666666666665,
+      "std": 31.836387288063253,
       "n_seeds": 3
     },
     "sensitivity_per_class_class0": {
-      "mean": 0.7527029234960105,
-      "std": 0.32643284367172243,
+      "mean": 0.663470757430489,
+      "std": 0.4691609998033321,
       "n_seeds": 3
     },
     "sensitivity_per_class_class1": {
-      "mean": 0.38697318007662834,
-      "std": 0.43842535363576685,
+      "mean": 0.3333333333333333,
+      "std": 0.4714045207910317,
       "n_seeds": 3
     },
     "sensitivity_per_class_class2": {
-      "mean": 0.974616858237548,
-      "std": 0.018186626001961213,
+      "mean": 0.9369369369369369,
+      "std": 0.08918463906857355,
       "n_seeds": 3
     },
     "sensitivity_per_class_class3": {
@@ -359,18 +359,18 @@
       "n_seeds": 3
     },
     "specificity_per_class_class0": {
-      "mean": 0.7464793557242884,
-      "std": 0.1812470984900242,
+      "mean": 0.6926599587203303,
+      "std": 0.2267931916808339,
       "n_seeds": 3
     },
     "specificity_per_class_class1": {
-      "mean": 0.8309362829819104,
-      "std": 0.23857812678430532,
+      "mean": 0.7599709934735316,
+      "std": 0.33945227639267184,
       "n_seeds": 3
     },
     "specificity_per_class_class2": {
-      "mean": 0.9900641607274344,
-      "std": 0.0007064106674235723,
+      "mean": 0.9947217749150116,
+      "std": 0.003994831555155879,
       "n_seeds": 3
     },
     "specificity_per_class_class3": {
@@ -394,13 +394,13 @@
       44
     ],
     "accuracy": {
-      "mean": 0.8529565777205667,
-      "std": 0.03699699149879827,
+      "mean": 0.8023125067876749,
+      "std": 0.05543343001704798,
       "n_seeds": 3
     },
     "auc_roc_ovr_macro": {
-      "mean": 0.9239408671166247,
-      "std": 0.007244795873372799,
+      "mean": 0.9292153738963342,
+      "std": 0.02783590679009487,
       "n_seeds": 3
     },
     "auc_roc_ovr_macro_n_classes_included": {
@@ -409,38 +409,38 @@
       "n_seeds": 3
     },
     "macro_f1": {
-      "mean": 0.5812829681766819,
-      "std": 0.06837654443001394,
+      "mean": 0.5529671701350145,
+      "std": 0.01809409215961277,
       "n_seeds": 3
     },
     "n_test": {
-      "mean": 2966.0,
-      "std": 0.0,
+      "mean": 3021.3333333333335,
+      "std": 36.97146046464609,
       "n_seeds": 3
     },
     "n_train": {
-      "mean": 13836.0,
-      "std": 0.0,
+      "mean": 13744.0,
+      "std": 65.91408549518583,
       "n_seeds": 3
     },
     "n_val": {
-      "mean": 2965.0,
-      "std": 0.0,
+      "mean": 3001.6666666666665,
+      "std": 31.836387288063253,
       "n_seeds": 3
     },
     "sensitivity_per_class_class0": {
-      "mean": 0.9657605816588676,
-      "std": 0.03501627518221805,
+      "mean": 0.9868502113132653,
+      "std": 0.014717467799009195,
       "n_seeds": 3
     },
     "sensitivity_per_class_class1": {
-      "mean": 0.26497351814288933,
-      "std": 0.34149148074712127,
+      "mean": 0.057395143487858714,
+      "std": 0.08116899033487962,
       "n_seeds": 3
     },
     "sensitivity_per_class_class2": {
-      "mean": 0.7967624521072797,
-      "std": 0.03341779276565618,
+      "mean": 0.8753618134263296,
+      "std": 0.07675042664725182,
       "n_seeds": 3
     },
     "sensitivity_per_class_class3": {
@@ -449,18 +449,18 @@
       "n_seeds": 3
     },
     "specificity_per_class_class0": {
-      "mean": 0.6846063456366108,
-      "std": 0.1441976224014553,
+      "mean": 0.5655437613641948,
+      "std": 0.07278329898024119,
       "n_seeds": 3
     },
     "specificity_per_class_class1": {
-      "mean": 0.9818181818181818,
-      "std": 0.025712973861329008,
+      "mean": 0.9956490210297317,
+      "std": 0.006153213469353549,
       "n_seeds": 3
     },
     "specificity_per_class_class2": {
-      "mean": 0.9942858663689685,
-      "std": 0.000553082552292312,
+      "mean": 0.9955448201825013,
+      "std": 0.0039800590256396625,
       "n_seeds": 3
     },
     "specificity_per_class_class3": {

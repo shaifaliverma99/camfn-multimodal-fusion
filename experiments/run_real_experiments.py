@@ -29,7 +29,7 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.nn as nn
-from sklearn.model_selection import GroupKFold, StratifiedKFold, train_test_split
+from sklearn.model_selection import GroupKFold, GroupShuffleSplit, StratifiedKFold, train_test_split
 from torch.utils.data import DataLoader, Subset
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -57,6 +57,7 @@ from src.utils.seed import set_seed  # noqa: E402
 REPO_ROOT = Path(__file__).resolve().parents[2]
 RESULTS_DIR = Path(__file__).resolve().parent / "results"
 CKPT_DIR = Path(__file__).resolve().parent / "checkpoints"
+PRED_DIR = Path(__file__).resolve().parent / "results" / "predictions"
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 SEED = 42
 
@@ -89,6 +90,7 @@ def run_training(
     n_classes: int,
     log,
     checkpoint_path: Path | None = None,
+    predictions_path: Path | None = None,
 ):
     def make_loader(items, shuffle):
         xs = torch.stack([it[x_key] for it in items])
@@ -154,6 +156,10 @@ def run_training(
         test_pred = np.concatenate(test_pred)
         test_proba = np.concatenate(test_proba)
 
+    if predictions_path is not None:
+        predictions_path.parent.mkdir(parents=True, exist_ok=True)
+        np.savez(predictions_path, y_true=test_true, y_pred=test_pred, y_proba=test_proba)
+
     metrics = compute_classification_metrics(test_true, test_pred, test_proba, n_classes=n_classes)
     metrics["best_val_acc"] = best_val_acc
     metrics["n_train"] = len(train_items)
@@ -176,6 +182,7 @@ def run_kfold_training(
     log,
     n_splits: int = 5,
     checkpoint_path: Path | None = None,
+    predictions_path: Path | None = None,
 ):
     """K-fold cross-validation over the *entire* pool of items (train+test
     combined), so every real sample gets evaluated exactly once as a
@@ -201,9 +208,20 @@ def run_kfold_training(
         fold_train = [items[i] for i in train_idx]
         fold_test = [items[i] for i in test_idx]
         fold_train_labels = [labels[i] for i in train_idx]
-        fold_train_items, fold_val_items = train_test_split(
-            fold_train, test_size=0.2, stratify=fold_train_labels, random_state=SEED
-        )
+        if groups is not None:
+            # Keep the inner train/val carve-out subject-grouped too, so a
+            # person's samples can't split across train and val within a
+            # fold (val only affects checkpoint selection, not the
+            # reported test metric, but there's no reason to leak it).
+            fold_train_groups = [groups[i] for i in train_idx]
+            inner_gss = GroupShuffleSplit(n_splits=1, test_size=0.2, random_state=SEED)
+            tr_rel, val_rel = next(inner_gss.split(np.arange(len(fold_train)), fold_train_labels, groups=fold_train_groups))
+            fold_train_items = [fold_train[i] for i in tr_rel]
+            fold_val_items = [fold_train[i] for i in val_rel]
+        else:
+            fold_train_items, fold_val_items = train_test_split(
+                fold_train, test_size=0.2, stratify=fold_train_labels, random_state=SEED
+            )
 
         model = model_ctor()
         log(f"  -- fold {fold}: n_train={len(fold_train_items)} n_val={len(fold_val_items)} n_test={len(fold_test)}")
@@ -227,6 +245,9 @@ def run_kfold_training(
     pooled_true = np.concatenate(all_true)
     pooled_pred = np.concatenate(all_pred)
     pooled_proba = np.concatenate(all_proba)
+    if predictions_path is not None:
+        predictions_path.parent.mkdir(parents=True, exist_ok=True)
+        np.savez(predictions_path, y_true=pooled_true, y_pred=pooled_pred, y_proba=pooled_proba)
     metrics = compute_classification_metrics(pooled_true, pooled_pred, pooled_proba, n_classes=n_classes)
     metrics["n_folds"] = n_splits
     metrics["n_test_total"] = len(pooled_true)
@@ -234,54 +255,72 @@ def run_kfold_training(
     return metrics
 
 
-def experiment_alzheimer(log, results: list, save_ckpt: bool = True):
-    log("\n=== Experiment: Alzheimer (OASIS-1 MRI slices), HC vs AD ===")
+def experiment_alzheimer(log, results: list, save_ckpt: bool = True, save_predictions: bool = False):
+    log("\n=== Experiment: Alzheimer (OASIS-1 MRI slices), HC vs AD, subject-grouped split ===")
     ds = OASIS1SliceDataset(REPO_ROOT / "Datasets/Alzheimer/Data", image_size=64)
     items = [ds[i] for i in _sample_indices(len(ds), max_n=12000, seed=SEED)]
     labels = [0 if it["severity_class"] == 0 else 1 for it in items]
     for it, lab in zip(items, labels):
         it["y"] = lab
-    train_items, temp_items = train_test_split(items, test_size=0.3, stratify=labels, random_state=SEED)
-    temp_labels = [it["y"] for it in temp_items]
-    val_items, test_items = train_test_split(temp_items, test_size=0.5, stratify=temp_labels, random_state=SEED)
+    groups = [it["subject_id"] for it in items]
+    n_subjects = len(set(groups))
+    log(f"  {len(items)} slices from {n_subjects} unique subjects (subject-grouped split -- see mri_dataset.py)")
+    train_items, val_items, test_items = _grouped_train_val_test_split(items, labels, groups, seed=SEED)
 
     model = SingleModalityClassifier(ImageEncoder2D(d_model=64), d_model=64, n_classes=2)
     metrics = run_training(
         model, train_items, val_items, test_items, x_key="mri", y_key="y",
         epochs=6, batch_size=64, lr=3e-4, n_classes=2, log=log,
         checkpoint_path=(CKPT_DIR / "alzheimer_mri.pt") if save_ckpt else None,
+        predictions_path=(PRED_DIR / "alzheimer_hc_vs_ad.npz") if save_predictions else None,
+    )
+    metrics["note"] = (
+        f"subject-grouped split (GroupShuffleSplit) over {n_subjects} unique OASIS-1 subjects -- "
+        "a prior version of this experiment split individual slices without subject grouping, which "
+        "leaks the same patient's scans across train/test and inflates accuracy; see docs/RESULTS.md."
     )
     log(f"RESULT alzheimer_hc_vs_ad: {metrics}")
     results.append({"experiment": "alzheimer_hc_vs_ad", "modality": "mri", "dataset": "OASIS-1 slices", **_flatten(metrics)})
 
 
-def experiment_pd_motor(log, results: list, save_ckpt: bool = True):
-    """5-fold stratified CV over the *combined* train+test pool (n=102 per
-    task) instead of one fixed n=30 test split -- every real drawing gets
-    evaluated exactly once, which is far more defensible for a dataset
-    this small than a single lucky/unlucky split (see paper Discussion).
+def experiment_pd_motor(log, results: list, save_ckpt: bool = True, save_predictions: bool = False):
+    """5-fold *subject-grouped* CV over the combined train+test pool
+    (n=102 per task). The dataset's own provided training/testing split
+    is NOT subject-disjoint (same subject IDs, e.g. V01-V11, appear on
+    both sides -- see motor_dataset.py), so besides pooling train+test
+    into one CV loop (avoiding a single lucky/unlucky n=30 split), we
+    also group folds by subject so no person's drawings cross a fold
+    boundary.
     """
     for task in ("spiral", "wave"):
-        log(f"\n=== Experiment: Parkinson's motor drawings ({task}), healthy vs PD, 5-fold CV ===")
+        log(f"\n=== Experiment: Parkinson's motor drawings ({task}), healthy vs PD, 5-fold subject-grouped CV ===")
         train_ds = ParkinsonDrawingDataset(REPO_ROOT / "Datasets/Parkinson", task=task, split="training", image_size=96)
         test_ds = ParkinsonDrawingDataset(REPO_ROOT / "Datasets/Parkinson", task=task, split="testing", image_size=96)
         items = [train_ds[i] for i in range(len(train_ds))] + [test_ds[i] for i in range(len(test_ds))]
         for it in items:
             it["y"] = it["pd_motor_label"]
         labels = [it["y"] for it in items]
+        groups = [it["subject_key"] for it in items]
+        n_subjects = len(set(groups))
+        log(f"  {len(items)} drawings from {n_subjects} unique (class, subject) groups")
 
         metrics = run_kfold_training(
-            items, labels, groups=None, x_key="motor", y_key="y",
+            items, labels, groups=groups, x_key="motor", y_key="y",
             model_ctor=lambda: SingleModalityClassifier(ImageEncoder2D(d_model=64), d_model=64, n_classes=2),
             epochs=25, batch_size=8, lr=1e-3, n_classes=2, log=log, n_splits=5,
             checkpoint_path=(CKPT_DIR / f"pd_motor_{task}.pt") if save_ckpt else None,
+            predictions_path=(PRED_DIR / f"pd_motor_{task}.npz") if save_predictions else None,
         )
-        metrics["note"] = "5-fold stratified CV over the full train+test pool (n=102); checkpoint is fold-0's model only"
+        metrics["note"] = (
+            f"5-fold GroupKFold CV by subject over the full train+test pool ({n_subjects} groups, n={len(items)}); "
+            "the dataset's own train/test split is not subject-disjoint (same IDs on both sides), which a prior "
+            "version of this experiment did not correct for; checkpoint is fold-0's model only."
+        )
         log(f"RESULT pd_motor_{task}: {metrics}")
         results.append({"experiment": f"pd_motor_{task}", "modality": "motor(drawing)", "dataset": f"Parkinson Drawings ({task})", **_flatten(metrics)})
 
 
-def experiment_pd_voice(log, results: list, save_ckpt: bool = True):
+def experiment_pd_voice(log, results: list, save_ckpt: bool = True, save_predictions: bool = False):
     """5-fold *subject-grouped* CV (GroupKFold) over all 195 recordings --
     every recording is evaluated exactly once, with a subject never split
     across train/test within a fold, avoiding both the leakage risk of a
@@ -306,7 +345,7 @@ def experiment_pd_voice(log, results: list, save_ckpt: bool = True):
     results.append({"experiment": "pd_voice", "modality": "acoustic", "dataset": "UCI Parkinson's voice", **_flatten(metrics)})
 
 
-def experiment_epilepsy(log, results: list, save_ckpt: bool = True):
+def experiment_epilepsy(log, results: list, save_ckpt: bool = True, save_predictions: bool = False):
     log("\n=== Experiment: Epilepsy (Epileptic Seizure Recognition), seizure vs non-seizure ===")
     ds = EpilepticSeizureCSVDataset(REPO_ROOT / "Datasets/Epilepsy/Epileptic Seizure Recognition.csv")
     items = [ds[i] for i in range(len(ds))]
@@ -322,6 +361,7 @@ def experiment_epilepsy(log, results: list, save_ckpt: bool = True):
         model, train_items, val_items, test_items, x_key="eeg", y_key="y",
         epochs=10, batch_size=64, lr=1e-3, n_classes=2, log=log,
         checkpoint_path=(CKPT_DIR / "epilepsy_eeg.pt") if save_ckpt else None,
+        predictions_path=(PRED_DIR / "epilepsy_seizure_vs_not.npz") if save_predictions else None,
     )
     metrics["note"] = "rows are pre-shuffled by the dataset distributor; standard random split matches published practice on this corpus"
     log(f"RESULT epilepsy: {metrics}")
@@ -329,9 +369,19 @@ def experiment_epilepsy(log, results: list, save_ckpt: bool = True):
 
 
 def _build_joint_split(image_size: int = 64):
-    """Builds the combined 4-cohort dataset and a fixed 70/15/15 split.
-    Factored out so CAMFN and the fusion ablation train/test on the
+    """Builds the combined 4-cohort dataset and a subject-grouped 70/15/15
+    split. Factored out so CAMFN and the fusion ablation train/test on the
     *identical* split -- a fair comparison isolating the fusion mechanism.
+
+    Each cohort is split *independently* by its own subject/group key
+    (MRI: OASIS-1 subject; motor: (class, subject) key; voice: subject),
+    then the per-cohort train/val/test index sets are mapped to global
+    indices and concatenated. A single pooled random split (the original
+    version of this function) ignores subject grouping entirely and lets
+    the same person's samples land in both train and test for three of
+    the four cohorts -- see docs/RESULTS.md. The EEG cohort has no
+    recoverable subject ID in this corpus, so it falls back to a plain
+    stratified split (unavoidable with this specific dataset).
     """
     fixed_shapes = {"mri": (1, image_size, image_size), "motor": (1, image_size, image_size), "acoustic": (22,)}
     alz = OASIS1SliceDataset(REPO_ROOT / "Datasets/Alzheimer/Data", image_size=image_size)
@@ -349,15 +399,43 @@ def _build_joint_split(image_size: int = 64):
         CohortWrapperDataset(eeg, "eeg", _epilepsy_label, "epileptic_seizure_recognition", fixed_shapes),
     ]
     full = MultimodalNeuroDataset(cohorts)
-    n = len(full)
-    idx = np.arange(n)
+
+    # (labels, groups) per cohort, read directly from each dataset's
+    # lightweight index (not via __getitem__, to avoid loading/decoding
+    # every image/signal twice just to compute a split).
+    alz_labels = [0 if alz.samples[i][1] == 0 else 1 for i in alz_idx]
+    alz_groups = [alz.samples[i][2] for i in alz_idx]
+
+    motor_labels = [s[1] for s in motor.samples]
+    motor_groups = [s[2] for s in motor.samples]
+
+    voice_labels = [r[1] for r in voice.rows]
+    voice_groups = _voice_subject_groups(REPO_ROOT / "Datasets/Parkinson_voice/parkinsons.data")
+
+    eeg_labels = [1 if r[1] == 1 else 0 for r in eeg.rows]
+
+    per_cohort = [
+        (len(alz_idx), alz_labels, alz_groups),
+        (len(motor.samples), motor_labels, motor_groups),
+        (len(voice.rows), voice_labels, voice_groups),
+        (len(eeg.rows), eeg_labels, None),
+    ]
+
+    train_parts, val_parts, test_parts = [], [], []
+    for cohort_idx, (n, labels, groups) in enumerate(per_cohort):
+        tr, va, te = _grouped_index_split(n, labels, groups, seed=SEED)
+        offset = full._offsets[cohort_idx]
+        train_parts.append(offset + tr)
+        val_parts.append(offset + va)
+        test_parts.append(offset + te)
+
     rng = np.random.RandomState(SEED)
-    rng.shuffle(idx)
-    n_train = int(0.7 * n)
-    n_val = int(0.15 * n)
-    train_idx = idx[:n_train]
-    val_idx = idx[n_train:n_train + n_val]
-    test_idx = idx[n_train + n_val:]
+    train_idx = np.concatenate(train_parts)
+    val_idx = np.concatenate(val_parts)
+    test_idx = np.concatenate(test_parts)
+    rng.shuffle(train_idx)  # DataLoader(shuffle=True) reshuffles every epoch anyway; just avoids cohort-ordered batches on the very first pass
+    rng.shuffle(val_idx)
+    rng.shuffle(test_idx)
 
     train_loader = DataLoader(Subset(full, train_idx), batch_size=64, shuffle=True, collate_fn=collate_fn)
     val_loader = DataLoader(Subset(full, val_idx), batch_size=64, shuffle=False, collate_fn=collate_fn)
@@ -409,7 +487,7 @@ def _train_joint_model(model, train_loader, val_loader, epochs, log):
     return model
 
 
-def experiment_camfn_joint(log, results: list, save_ckpt: bool = True):
+def experiment_camfn_joint(log, results: list, save_ckpt: bool = True, save_predictions: bool = False):
     log("\n=== Experiment: CAMFN joint (all cohorts, dynamic gated fusion, missing-modality masking) ===")
     train_loader, val_loader, test_loader, n_train, n_val, n_test = _build_joint_split()
 
@@ -422,6 +500,9 @@ def experiment_camfn_joint(log, results: list, save_ckpt: bool = True):
         log(f"  saved checkpoint -> {CKPT_DIR / 'camfn_joint.pt'}")
 
     test_true, test_pred, test_proba = _eval_joint_loader(model, test_loader)
+    if save_predictions:
+        PRED_DIR.mkdir(parents=True, exist_ok=True)
+        np.savez(PRED_DIR / "camfn_joint_5way.npz", y_true=test_true, y_pred=test_pred, y_proba=test_proba)
     metrics = compute_classification_metrics(test_true, test_pred, test_proba, n_classes=5)
     metrics["n_train"] = n_train
     metrics["n_val"] = n_val
@@ -436,7 +517,7 @@ def experiment_camfn_joint(log, results: list, save_ckpt: bool = True):
     results.append({"experiment": "camfn_joint_5way", "modality": "mri+eeg+motor+acoustic (masked)", "dataset": "combined (4 cohorts)", **_flatten(metrics)})
 
 
-def experiment_fusion_ablation(log, results: list, save_ckpt: bool = False):
+def experiment_fusion_ablation(log, results: list, save_ckpt: bool = False, save_predictions: bool = False):
     """Ablation: does CAMFN's cross-attention + dynamic gated fusion beat
     the simplest possible alternative (a fixed masked mean of the same
     encoders' embeddings, same placeholders, same heads)? Trained and
@@ -453,6 +534,9 @@ def experiment_fusion_ablation(log, results: list, save_ckpt: bool = False):
     model = _train_joint_model(model, train_loader, val_loader, epochs=6, log=log)
 
     test_true, test_pred, test_proba = _eval_joint_loader(model, test_loader)
+    if save_predictions:
+        PRED_DIR.mkdir(parents=True, exist_ok=True)
+        np.savez(PRED_DIR / "fusion_ablation_naive_mean.npz", y_true=test_true, y_pred=test_pred, y_proba=test_proba)
     metrics = compute_classification_metrics(test_true, test_pred, test_proba, n_classes=5)
     metrics["n_train"] = n_train
     metrics["n_val"] = n_val
@@ -471,6 +555,42 @@ def _sample_indices(n: int, max_n: int, seed: int) -> list[int]:
         return list(range(n))
     rng = np.random.RandomState(seed)
     return sorted(rng.choice(n, size=max_n, replace=False).tolist())
+
+
+def _grouped_index_split(
+    n: int, labels: list, groups: list | None, seed: int,
+    test_frac: float = 0.3, val_frac_of_temp: float = 0.5,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Splits range(n) into (train, val, test) index arrays such that no
+    `groups` value (e.g. subject ID) appears in more than one split.
+    Falls back to a plain stratified split if `groups` is None (only used
+    where no subject/group identifier can be recovered from the data at
+    all -- currently just the Epileptic Seizure Recognition rows).
+    """
+    idx = np.arange(n)
+    if groups is None:
+        train_idx, temp_idx = train_test_split(idx, test_size=test_frac, stratify=labels, random_state=seed)
+        temp_labels = [labels[i] for i in temp_idx]
+        val_idx, test_idx = train_test_split(temp_idx, test_size=val_frac_of_temp, stratify=temp_labels, random_state=seed)
+    else:
+        gss = GroupShuffleSplit(n_splits=1, test_size=test_frac, random_state=seed)
+        train_idx, temp_idx = next(gss.split(idx, labels, groups=groups))
+        temp_groups = [groups[i] for i in temp_idx]
+        temp_labels = [labels[i] for i in temp_idx]
+        gss2 = GroupShuffleSplit(n_splits=1, test_size=val_frac_of_temp, random_state=seed)
+        val_idx_rel, test_idx_rel = next(gss2.split(np.arange(len(temp_idx)), temp_labels, groups=temp_groups))
+        val_idx = temp_idx[val_idx_rel]
+        test_idx = temp_idx[test_idx_rel]
+    return np.asarray(train_idx), np.asarray(val_idx), np.asarray(test_idx)
+
+
+def _grouped_train_val_test_split(
+    items: list, labels: list, groups: list | None, seed: int,
+    test_frac: float = 0.3, val_frac_of_temp: float = 0.5,
+) -> tuple[list, list, list]:
+    """Item-list convenience wrapper around `_grouped_index_split`."""
+    train_idx, val_idx, test_idx = _grouped_index_split(len(items), labels, groups, seed, test_frac, val_frac_of_temp)
+    return [items[i] for i in train_idx], [items[i] for i in val_idx], [items[i] for i in test_idx]
 
 
 def _voice_subject_groups(csv_path: Path) -> list[str]:
@@ -504,6 +624,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, default=SEED)
     parser.add_argument("--save-checkpoints", action="store_true", default=False)
+    parser.add_argument("--save-predictions", action="store_true", default=False,
+                         help="Save raw (y_true, y_pred, y_proba) per experiment to results/predictions/ "
+                              "for generating real confusion-matrix / ROC-curve figures.")
     args = parser.parse_args()
 
     SEED = args.seed
@@ -519,12 +642,12 @@ def main():
     log(f"Device: {DEVICE}, seed: {SEED}")
     results: list[dict] = []
 
-    experiment_alzheimer(log, results, save_ckpt=args.save_checkpoints)
-    experiment_pd_motor(log, results, save_ckpt=args.save_checkpoints)
-    experiment_pd_voice(log, results, save_ckpt=args.save_checkpoints)
-    experiment_epilepsy(log, results, save_ckpt=args.save_checkpoints)
-    experiment_camfn_joint(log, results, save_ckpt=args.save_checkpoints)
-    experiment_fusion_ablation(log, results)
+    experiment_alzheimer(log, results, save_ckpt=args.save_checkpoints, save_predictions=args.save_predictions)
+    experiment_pd_motor(log, results, save_ckpt=args.save_checkpoints, save_predictions=args.save_predictions)
+    experiment_pd_voice(log, results, save_ckpt=args.save_checkpoints, save_predictions=args.save_predictions)
+    experiment_epilepsy(log, results, save_ckpt=args.save_checkpoints, save_predictions=args.save_predictions)
+    experiment_camfn_joint(log, results, save_ckpt=args.save_checkpoints, save_predictions=args.save_predictions)
+    experiment_fusion_ablation(log, results, save_predictions=args.save_predictions)
 
     log(f"\nTotal wall time: {time.time() - t0:.1f}s")
 
