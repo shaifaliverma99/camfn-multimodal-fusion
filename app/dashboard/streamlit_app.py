@@ -172,8 +172,17 @@ with tabs[2]:
     if csv_upload is not None:
         import csv as _csv
         reader = _csv.DictReader(io.StringIO(csv_upload.read().decode()))
-        row = next(reader)
-        values = {c: float(row[c]) for c in FEATURE_COLUMNS}
+        row = next(reader, None)
+        missing = [c for c in FEATURE_COLUMNS if row is not None and c not in row]
+        if row is None:
+            st.error("That CSV has no data row after the header — nothing to load.")
+        elif missing:
+            st.error(f"CSV is missing expected column(s): {missing}. Expected the 22 UCI feature names as headers.")
+        else:
+            try:
+                values = {c: float(row[c]) for c in FEATURE_COLUMNS}
+            except ValueError as e:
+                st.error(f"Couldn't parse a numeric value from that CSV: {e}")
     cols = st.columns(4)
     for i, feat in enumerate(FEATURE_COLUMNS):
         with cols[i % 4]:
@@ -210,12 +219,23 @@ with tabs[3]:
             result = inference.predict_eeg_window(data.tolist(), fs=fs, already_178=False)
         else:
             import csv as _csv
-            row = next(_csv.reader(io.StringIO(upload.read().decode())))
-            samples = [float(v) for v in row if v.strip()]
-            fig = go.Figure(go.Scatter(y=samples, mode="lines"))
-            fig.update_layout(title="Uploaded window", height=280, margin=dict(t=40, b=10))
-            st.plotly_chart(fig, width='stretch')
-            result = inference.predict_eeg_window(samples, already_178=(len(samples) == 178))
+            row = next(_csv.reader(io.StringIO(upload.read().decode())), None)
+            if not row:
+                st.error("That CSV appears to be empty — nothing to load.")
+                result = {"trained": False, "error": "empty CSV"}
+            else:
+                try:
+                    samples = [float(v) for v in row if v.strip()]
+                except ValueError as e:
+                    st.error(f"Couldn't parse a numeric value from that CSV row: {e}")
+                    samples = []
+                if not samples:
+                    result = {"trained": False, "error": "no numeric values found in that row"}
+                else:
+                    fig = go.Figure(go.Scatter(y=samples, mode="lines"))
+                    fig.update_layout(title="Uploaded window", height=280, margin=dict(t=40, b=10))
+                    st.plotly_chart(fig, width='stretch')
+                    result = inference.predict_eeg_window(samples, already_178=(len(samples) == 178))
 
         if result.get("trained"):
             st.plotly_chart(_proba_bar(result["labels"], [result["probabilities"][l] for l in result["labels"]], "P(class)"), width='stretch')
@@ -255,10 +275,22 @@ with tabs[4]:
         motor_bytes = motor_up.read() if motor_up else None
         voice_feats = values if (use_voice and values) else None
         eeg_samples = None
+        eeg_parse_error = None
         if eeg_up is not None:
             import csv as _csv
-            row = next(_csv.reader(io.StringIO(eeg_up.read().decode())))
-            eeg_samples = [float(v) for v in row if v.strip()]
+            row = next(_csv.reader(io.StringIO(eeg_up.read().decode())), None)
+            if not row:
+                eeg_parse_error = "That EEG CSV appears to be empty — ignoring it."
+            else:
+                try:
+                    eeg_samples = [float(v) for v in row if v.strip()]
+                except ValueError as e:
+                    eeg_parse_error = f"Couldn't parse a numeric value from the EEG CSV: {e}"
+                if eeg_samples is not None and not eeg_samples:
+                    eeg_parse_error = "No numeric values found in the EEG CSV row."
+                    eeg_samples = None
+        if eeg_parse_error:
+            st.error(eeg_parse_error)
 
         result = inference.predict_joint(mri_bytes=mri_bytes, motor_bytes=motor_bytes, voice_features=voice_feats, eeg_samples=eeg_samples)
         if result.get("trained") and "error" not in result:
